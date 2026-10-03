@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coolmate - Giải Pháp Mua Sắm Cơ Bản Cho Nam Giới</title>
+    <!-- Google Font Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Bootstrap 5.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- AOS CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --cm-dark: #111111;
+            --cm-charcoal: #1f2328;
+            --cm-blue: #2f5acf;
+            --cm-blue-hover: #1e42a0;
+            --cm-light-gray: #f4f5f7;
+            --cm-border: #e5e7eb;
+            --cm-text-muted: #6b7280;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: var(--cm-dark);
+            background-color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        /* Top Announcement Ticker */
+        .top-ticker {
+            background-color: var(--cm-dark);
+            color: #f9fafb;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+            padding: 8px 0;
+            position: relative;
+            z-index: 1040;
+        }
+
+        /* Glassmorphism Sticky Navbar */
+        .glass-navbar {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border-bottom: 1px solid rgba(229, 231, 235, 0.7);
+            transition: all 0.3s ease;
+        }
+
+        .glass-navbar.scrolled {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        .navbar-brand {
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            font-size: 1.6rem;
+            color: var(--cm-dark) !important;
+        }
+
+        .navbar-brand span {
+            color: var(--cm-blue);
+        }
+
+        .nav-link {
+            font-weight: 600;
+            font-size: 0.93rem;
+            color: var(--cm-dark) !important;
+            padding: 8px 16px !important;
+            transition: color 0.2s ease;
+        }
+
+        .nav-link:hover {
+            color: var(--cm-blue) !important;
+        }
+
+        .search-box {
+            position: relative;
+            width: 210px;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .search-box:focus-within {
+            width: 320px;
+        }
+
+        .search-input {
+            border-radius: 9999px;
+            padding: 8px 18px 8px 40px;
+            font-size: 0.88rem;
+            background-color: #f1f3f5;
+            border: 1px solid transparent;
+            transition: all 0.25s ease;
+        }
+
+        .search-input:focus {
+            background-color: #ffffff;
+            border-color: var(--cm-dark);
+            box-shadow: 0 0 0 4px rgba(17, 17, 17, 0.08);
+            outline: none;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--cm-text-muted);
+            pointer-events: none;
+        }
+
+        .badge-cart {
+            font-size: 0.68rem;
+            padding: 0.25em 0.55em;
+            background-color: var(--cm-blue) !important;
+        }
+
+        /* Hero Banner */
+        .hero-banner {
+            position: relative;
+            background: radial-gradient(circle at 80% 20%, rgba(47, 90, 207, 0.28) 0%, rgba(13, 17, 23, 0) 70%),
+                        linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+            color: #ffffff;
+            padding: 100px 0 120px 0;
+            overflow: hidden;
+        }
+
+        .hero-badge {
+            background-color: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            padding: 6px 14px;
+            border-radius: 9999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .hero-title {
+            font-size: 3.4rem;
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -1px;
+        }
+
+        .hero-title span {
+            background: linear-gradient(90deg, #ffffff 0%, #a5b4fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .btn-cta-primary {
+            background-color: var(--cm-blue);
+            color: #ffffff;
+            font-weight: 700;
+            padding: 14px 34px;
+            border-radius: 9999px;
+            border: none;
+            transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            box-shadow: 0 8px 24px rgba(47, 90, 207, 0.35);
+        }
+
+        .btn-cta-primary:hover {
+            background-color: var(--cm-blue-hover);
+            color: #ffffff;
+            transform: translateY(-3px) scale(1.03);
+            box-shadow: 0 14px 32px rgba(47, 90, 207, 0.45);
+        }
+
+        .btn-cta-secondary {
+            background-color: transparent;
+            color: #ffffff;
+            font-weight: 700;
+            padding: 13px 30px;
+            border-radius: 9999px;
+            border: 1.5px solid rgba(255, 255, 255, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .btn-cta-secondary:hover {
+            background-color: #ffffff;
+            color: var(--cm-dark);
+            transform: translateY(-2px);
+        }
+
+        /* Value Propositions */
+        .value-card {
+            background: #ffffff;
+            border: 1px solid var(--cm-border);
+            border-radius: 18px;
+            padding: 28px 24px;
+            transition: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+            height: 100%;
+        }
+
+        .value-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.07);
+            border-color: rgba(47, 90, 207, 0.25);
+        }
+
+        .value-icon-wrapper {
+            width: 58px;
+            height: 58px;
+            border-radius: 14px;
+            background: #f1f5f9;
+            color: var(--cm-dark);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            transition: transform 0.4s ease, background 0.3s ease, color 0.3s ease;
+            margin-bottom: 18px;
+        }
+
+        .value-card:hover .value-icon-wrapper {
+            transform: rotate(8deg) scale(1.08);
+            background: var(--cm-blue);
+            color: #ffffff;
+        }
+
+        /* Category Pill Chips */
+        .category-chips {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+            scrollbar-width: none;
+        }
+
+        .category-chips::-webkit-scrollbar {
+            display: none;
+        }
+
+        .category-chip {
+            padding: 10px 22px;
+            border-radius: 9999px;
+            background: #f3f4f6;
+            color: var(--cm-dark);
+            font-size: 0.88rem;
+            font-weight: 700;
+            text-decoration: none;
+            white-space: nowrap;
+            transition: all 0.25s ease;
+            border: 1px solid transparent;
+        }
+
+        .category-chip:hover,
+        .category-chip.active {
+            background: var(--cm-dark);
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
+
+        /* Product Cards */
+        .product-card {
+            border: none;
+            border-radius: 16px;
+            background: #ffffff;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .product-image-container {
+            position: relative;
+            width: 100%;
+            padding-top: 133.33%; /* 3:4 Aspect Ratio */
+            border-radius: 14px;
+            overflow: hidden;
+            background-color: #f7f7f8;
+        }
+
+        .product-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .product-card:hover .product-image {
+            transform: scale(1.08);
+        }
+
+        .badge-discount {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background-color: #e11d48;
+            color: #ffffff;
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 4px 8px;
+            border-radius: 6px;
+            z-index: 2;
+        }
+
+        .badge-material {
+            position: absolute;
+            bottom: 12px;
+            left: 12px;
+            background: rgba(17, 17, 17, 0.65);
+            backdrop-filter: blur(6px);
+            color: #ffffff;
+            font-size: 0.68rem;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 6px;
+            z-index: 2;
+            max-width: 80%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .quick-actions {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            opacity: 0;
+            transform: translateX(14px);
+            transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            z-index: 3;
+        }
+
+        .product-card:hover .quick-actions {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .btn-action-round {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+            color: var(--cm-dark);
+            transition: all 0.2s ease;
+        }
+
+        .btn-action-round:hover {
+            background-color: var(--cm-dark);
+            color: #ffffff;
+            transform: scale(1.1);
+        }
+
+        .color-swatch-list {
+            display: flex;
+            gap: 6px;
+            margin-top: 12px;
+        }
+
+        .color-swatch {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 1px solid #d1d5db;
+            cursor: pointer;
+            transition: transform 0.2s ease, outline 0.2s ease;
+        }
+
+        .color-swatch:hover {
+            transform: scale(1.25);
+            outline: 2px solid var(--cm-dark);
+            outline-offset: 1px;
+        }
+
+        .product-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            line-height: 1.35;
+            color: var(--cm-dark);
+            text-decoration: none;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin: 8px 0 6px 0;
+            min-height: 2.7em;
+            transition: color 0.2s ease;
+        }
+
+        .product-title:hover {
+            color: var(--cm-blue);
+        }
+
+        .product-price-current {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: var(--cm-dark);
+        }
+
+        .product-rating {
+            font-size: 0.76rem;
+            font-weight: 600;
+            color: #d97706;
+        }
+
+        .product-sold {
+            font-size: 0.75rem;
+            color: var(--cm-text-muted);
+        }
+
+        /* CoolClub VIP Banner */
+        .coolclub-section {
+            background: linear-gradient(135deg, #090d16 0%, #17223b 50%, #0d121c 100%);
+            border-radius: 28px;
+            color: #ffffff;
+            padding: 60px 48px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .coolclub-section::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -10%;
+            width: 420px;
+            height: 420px;
+            background: radial-gradient(circle, rgba(47, 90, 207, 0.35) 0%, rgba(0, 0, 0, 0) 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        /* Scroll To Top Button */
+        #scrollToTopBtn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: var(--cm-dark);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1030;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            transform: translateY(12px);
+        }
+
+        #scrollToTopBtn.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        #scrollToTopBtn:hover {
+            background-color: var(--cm-blue);
+            transform: translateY(-4px);
+        }
+
+        /* Footer */
+        .coolmate-footer {
+            background-color: #0b0d10;
+            color: #9ca3af;
+            font-size: 0.88rem;
+            padding-top: 70px;
+            padding-bottom: 30px;
+        }
+
+        .footer-heading {
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 0.95rem;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+
+        .footer-link {
+            color: #9ca3af;
+            text-decoration: none;
+            display: block;
+            margin-bottom: 10px;
+            transition: color 0.2s ease;
+        }
+
+        .footer-link:hover {
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. Top Ticker -->
+    <div class="top-ticker text-center">
+        <div class="container d-flex justify-content-center align-items-center gap-3">
+            <span><i class="bi bi-truck me-1"></i> Miễn phí vận chuyển toàn quốc cho đơn từ 200.000đ</span>
+            <span class="d-none d-md-inline opacity-50">|</span>
+            <span class="d-none d-md-inline"><i class="bi bi-arrow-repeat me-1"></i> 60 ngày đổi trả miễn phí tận nơi vì bất kỳ lý do gì</span>
+        </div>
+    </div>
+
+    <!-- 2. Sticky Glassmorphism Header & Navbar -->
+    <nav id="mainNavbar" class="navbar navbar-expand-lg sticky-top glass-navbar py-3">
+        <div class="container">
+            <a class="navbar-brand" th:href="@{/}">
+                COOLMATE<span>.</span>
+            </a>
+
+            <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#navContent">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navContent">
+                <ul class="navbar-nav me-auto ms-lg-4 mb-2 mb-lg-0">
+                    <li class="nav-link-item" th:each="cat : ${categories}">
+                        <a class="nav-link" th:href="@{'/danh-muc/' + ${cat.slug}}" th:text="${cat.name}">Danh Mục</a>
+                    </li>
+                    <li class="nav-link-item">
+                        <a class="nav-link text-danger fw-bold" href="#">CoolClub</a>
+                    </li>
+                </ul>
+
+                <div class="d-flex align-items-center gap-3">
+                    <!-- Search with Expand Animation -->
+                    <div class="search-box">
+                        <i class="bi bi-search search-icon"></i>
+                        <input type="text" class="form-control search-input" placeholder="Tìm sản phẩm, chất liệu...">
+                    </div>
+
+                    <!-- User Account -->
+                    <a th:href="@{/login}" class="btn btn-action-round" title="Tài khoản">
+                        <i class="bi bi-person fs-5"></i>
+                    </a>
+
+                    <!-- Cart with Badge -->
+                    <a th:href="@{/cart}" class="btn btn-action-round position-relative" title="Giỏ hàng">
+                        <i class="bi bi-bag fs-5"></i>
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill badge-cart">
+                            0
+                        </span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 3. Hero Banner -->
+    <section class="hero-banner">
+        <div class="container">
+            <div class="row align-items-center gy-5">
+                <div class="col-lg-7" data-aos="fade-right" data-aos-duration="900">
+                    <div class="hero-badge mb-3">
+                        <i class="bi bi-lightning-charge-fill text-warning"></i> CÔNG NGHỆ COOL-DRY MỚI 2025
+                    </div>
+                    <h1 class="hero-title mb-4">
+                        Tủ đồ thiết yếu chuẩn chất cho <span>nam giới hiện đại</span>
+                    </h1>
+                    <p class="text-white-50 fs-5 mb-5 pe-lg-5">
+                        Trải nghiệm sự thoải mái tối đa với các sản phẩm được nghiên cứu bài bản, chất liệu thoáng khí đỉnh cao và dịch vụ chăm sóc 100% hài lòng.
+                    </p>
+                    <div class="d-flex flex-wrap gap-3">
+                        <a href="#best-sellers" class="btn btn-cta-primary">
+                            Khám phá ngay <i class="bi bi-arrow-right ms-2"></i>
+                        </a>
+                        <a th:href="@{/danh-muc/ao-nam}" class="btn btn-cta-secondary">
+                            Xem Bộ Sưu Tập
+                        </a>
+                    </div>
+                </div>
+
+                <div class="col-lg-5 text-center" data-aos="zoom-in" data-aos-duration="1000">
+                    <div class="position-relative d-inline-block">
+                        <img src="https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=700&q=80"
+                             alt="Coolmate Collection"
+                             class="img-fluid rounded-4 shadow-2xl"
+                             style="max-height: 480px; object-fit: cover; border: 1px solid rgba(255,255,255,0.15);">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 4. Value Propositions -->
+    <section class="py-5 bg-white">
+        <div class="container my-3">
+            <div class="row g-4">
+                <div class="col-md-4" data-aos="fade-up" data-aos-delay="100">
+                    <div class="value-card">
+                        <div class="value-icon-wrapper">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </div>
+                        <h4 class="fw-bold fs-5 mb-2">Đổi trả 60 ngày miễn phí</h4>
+                        <p class="text-secondary small mb-0">
+                            Không hài lòng? Shipper đến tận nhà lấy hàng hoàn đổi, hoàn toàn miễn phí không cần lý do.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-md-4" data-aos="fade-up" data-aos-delay="200">
+                    <div class="value-card">
+                        <div class="value-icon-wrapper">
+                            <i class="bi bi-coin"></i>
+                        </div>
+                        <h4 class="fw-bold fs-5 mb-2">Hoàn tiền CoolCash</h4>
+                        <p class="text-secondary small mb-0">
+                            Tích lũy hoàn tiền ngay sau mỗi đơn hàng thành công, dùng trừ thẳng vào tiền đơn hàng tiếp theo.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-md-4" data-aos="fade-up" data-aos-delay="300">
+                    <div class="value-card">
+                        <div class="value-icon-wrapper">
+                            <i class="bi bi-lightning-charge"></i>
+                        </div>
+                        <h4 class="fw-bold fs-5 mb-2">Giao nhanh 24h nội thành</h4>
+                        <p class="text-secondary small mb-0">
+                            Cam kết đóng gói cẩn thận trong hộp giấy thân thiện môi trường và giao hỏa tốc đến tay bạn.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 5. Category Quick Chips -->
+    <section class="py-4 border-top border-light">
+        <div class="container">
+            <div class="category-chips">
+                <a th:href="@{/}" class="category-chip active">Tất Cả Sản Phẩm</a>
+                <a th:each="cat : ${categories}"
+                   th:href="@{'/danh-muc/' + ${cat.slug}}"
+                   th:text="${cat.name}"
+                   class="category-chip">Danh Mục</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- 6. Best Sellers Section -->
+    <section id="best-sellers" class="py-5">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-end mb-4" data-aos="fade-up">
+                <div>
+                    <span class="text-uppercase fw-bold text-muted small letter-spacing-1">Bộ sưu tập nổi bật</span>
+                    <h2 class="fw-bolder fs-2 mb-0">Sản Phẩm Bán Chạy Nhất</h2>
+                </div>
+                <a th:href="@{/san-pham}" class="text-decoration-none fw-bold text-dark d-flex align-items-center gap-1">
+                    Xem tất cả <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+
+            <!-- Product Grid -->
+            <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3 g-md-4">
+                <div class="col" th:each="product, iterStat : ${bestSellers}"
+                     data-aos="fade-up"
+                     th:attr="data-aos-delay=${iterStat.index * 75}">
+                    <div class="product-card h-100 d-flex flex-column">
+                        <!-- Image Container with 3:4 Aspect Ratio -->
+                        <div class="product-image-container">
+                            <!-- Discount Tag placeholder -->
+                            <span class="badge-discount" th:if="${product.variants != null and !product.variants.isEmpty()}">
+                                HOT
+                            </span>
+
+                            <!-- Material Tag -->
+                            <span class="badge-material" th:if="${product.material != null}" th:text="${product.material}">
+                                100% Cotton
+                            </span>
+
+                            <!-- Quick Action Buttons -->
+                            <div class="quick-actions">
+                                <button type="button" class="btn-action-round" title="Thêm vào yêu thích">
+                                    <i class="bi bi-heart"></i>
+                                </button>
+                                <a th:href="@{'/san-pham/' + ${product.slug}}" class="btn-action-round" title="Xem chi tiết">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </div>
+
+                            <a th:href="@{'/san-pham/' + ${product.slug}}">
+                                <img th:if="${product.images != null and !product.images.isEmpty()}"
+                                     th:src="${product.images[0].imageUrl}"
+                                     th:alt="${product.name}"
+                                     class="product-image">
+                                <img th:unless="${product.images != null and !product.images.isEmpty()}"
+                                     src="https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=600&q=80"
+                                     th:alt="${product.name}"
+                                     class="product-image">
+                            </a>
+                        </div>
+
+                        <!-- Product Metadata -->
+                        <div class="pt-2 d-flex flex-column flex-grow-1">
+                            <!-- Swatches -->
+                            <div class="color-swatch-list" th:if="${product.variants != null and !product.variants.isEmpty()}">
+                                <span th:each="variant : ${product.variants}"
+                                      th:if="${variant.color != null}"
+                                      class="color-swatch"
+                                      th:style="'background-color: ' + (${variant.color.hexCode != null ? variant.color.hexCode : '#000000'}) + ';'"
+                                      th:title="${variant.color.name}">
+                                </span>
+                            </div>
+
+                            <!-- Title -->
+                            <a th:href="@{'/san-pham/' + ${product.slug}}"
+                               class="product-title"
+                               th:text="${product.name}">
+                                Tên Sản Phẩm Coolmate Cao Cấp
+                            </a>
+
+                            <!-- Price -->
+                            <div class="mt-auto">
+                                <div class="product-price-current mb-1"
+                                     th:if="${product.basePrice != null}"
+                                     th:text="${#numbers.formatDecimal(product.basePrice, 0, 'COMMA', 0, 'POINT')} + ' đ'">
+                                    299.000 đ
+                                </div>
+                                <div class="product-price-current mb-1" th:unless="${product.basePrice != null}">
+                                    Liên hệ
+                                </div>
+
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div class="product-rating d-flex align-items-center gap-1">
+                                        <i class="bi bi-star-fill"></i>
+                                        <span th:text="${product.ratingAvg != null ? product.ratingAvg : '5.0'}">5.0</span>
+                                        <span class="text-muted" th:text="'(' + (${product.reviewCount != null ? product.reviewCount : 0}) + ')'">(0)</span>
+                                    </div>
+                                    <div class="product-sold"
+                                         th:text="'Đã bán ' + (${product.soldCount != null ? product.soldCount : 0})">
+                                        Đã bán 120
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fallback Empty State -->
+            <div class="text-center py-5" th:if="${bestSellers == null or bestSellers.isEmpty()}">
+                <i class="bi bi-inbox fs-1 text-muted"></i>
+                <p class="text-secondary mt-2">Hiện tại danh mục bán chạy đang được cập nhật thêm.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 7. CoolClub VIP Member Banner -->
+    <section class="py-5">
+        <div class="container" data-aos="fade-up">
+            <div class="coolclub-section">
+                <div class="row align-items-center position-relative" style="z-index: 2;">
+                    <div class="col-lg-8">
+                        <span class="badge bg-warning text-dark fw-bold px-3 py-2 rounded-pill mb-3">
+                            <i class="bi bi-gem me-1"></i> CoolClub Membership
+                        </span>
+                        <h3 class="fw-bold fs-2 mb-3">Gia nhập câu lạc bộ khách hàng thân thiết</h3>
+                        <p class="text-white-50 mb-4 fs-6 pe-lg-4">
+                            Đăng ký tài khoản ngay hôm nay để nhận ngay voucher giảm 50.000đ cho đơn đầu tiên, tích lũy hoàn tiền CoolCash đến 7% và quà tặng sinh nhật bất ngờ.
+                        </p>
+                    </div>
+                    <div class="col-lg-4 text-lg-end">
+                        <a th:href="@{/register}" class="btn btn-light fw-bold px-4 py-3 rounded-pill text-dark shadow">
+                            Đăng Ký Thành Viên <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 8. Footer -->
+    <footer class="coolmate-footer">
+        <div class="container">
+            <div class="row g-4 mb-5">
+                <div class="col-lg-4">
+                    <h5 class="fw-bold text-white mb-3">COOLMATE.</h5>
+                    <p class="small text-secondary pe-lg-4">
+                        Thương hiệu thời trang nam tối giản, ứng dụng công nghệ tiên tiến để mang lại sự tiện lợi và thoải mái vượt trội cho người Việt.
+                    </p>
+                    <div class="d-flex gap-3 fs-5 mt-3">
+                        <a href="#" class="text-secondary"><i class="bi bi-facebook"></i></a>
+                        <a href="#" class="text-secondary"><i class="bi bi-instagram"></i></a>
+                        <a href="#" class="text-secondary"><i class="bi bi-tiktok"></i></a>
+                        <a href="#" class="text-secondary"><i class="bi bi-youtube"></i></a>
+                    </div>
+                </div>
+
+                <div class="col-6 col-lg-2">
+                    <div class="footer-heading">Khám Phá</div>
+                    <a th:each="cat : ${categories}"
+                       th:href="@{'/danh-muc/' + ${cat.slug}}"
+                       th:text="${cat.name}"
+                       class="footer-link">Danh Mục</a>
+                </div>
+
+                <div class="col-6 col-lg-3">
+                    <div class="footer-heading">Chính Sách & Hỗ Trợ</div>
+                    <a href="#" class="footer-link">Chính sách đổi trả 60 ngày</a>
+                    <a href="#" class="footer-link">Chính sách bảo mật</a>
+                    <a href="#" class="footer-link">Hướng dẫn chọn size chuẩn</a>
+                    <a href="#" class="footer-link">Hỏi đáp thường gặp (FAQ)</a>
+                </div>
+
+                <div class="col-lg-3">
+                    <div class="footer-heading">Liên Hệ</div>
+                    <p class="small mb-2"><i class="bi bi-telephone-fill me-2 text-primary"></i> Hotline: 1900.27.27.37</p>
+                    <p class="small mb-2"><i class="bi bi-envelope-fill me-2 text-primary"></i> Email: cskh@coolmate.me</p>
+                    <p class="small"><i class="bi bi-geo-alt-fill me-2 text-primary"></i> Hà Nội & TP. Hồ Chí Minh</p>
+                </div>
+            </div>
+
+            <div class="border-top border-secondary pt-3 text-center small text-secondary">
+                © 2025 Coolmate Shop Clone. Thiết kế giao diện phong cách Minimalist e-Commerce.
+            </div>
+        </div>
+    </footer>
+
+    <!-- 9. Floating Scroll-To-Top Button -->
+    <button id="scrollToTopBtn" type="button" aria-label="Cuộn lên đầu trang">
+        <i class="bi bi-arrow-up fs-5"></i>
+    </button>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- AOS JS -->
+    <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+
+    <script>
+        // Khởi tạo Animate On Scroll
+        AOS.init({
+            duration: 800,
+            once: true,
+            offset: 80
+        });
+
+        // Xử lý hiệu ứng Navbar cuộn và Scroll-To-Top button
+        const mainNavbar = document.getElementById('mainNavbar');
+        const scrollToTopBtn = document.getElementById('scrollToTopBtn');
+
+        window.addEventListener('scroll', () => {
+            const scrollPos = window.scrollY;
+
+            // Đổi bóng đổ và nền khi cuộn navbar
+            if (scrollPos > 30) {
+                mainNavbar.classList.add('scrolled');
+            } else {
+                mainNavbar.classList.remove('scrolled');
+            }
+
+            // Hiện/Ẩn nút scroll to top khi cuộn qua 400px
+            if (scrollPos > 400) {
+                scrollToTopBtn.classList.add('show');
+            } else {
+                scrollToTopBtn.classList.remove('show');
+            }
+        });
+
+        // Cuộn êm lên đầu trang khi click nút
+        scrollToTopBtn.addEventListener('click', () => {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+    </script>
+</body>
+</html>
