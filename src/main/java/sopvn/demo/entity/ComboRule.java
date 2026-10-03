@@ -29,7 +29,7 @@ public class ComboRule {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
-    private Long id;
+    private Integer id;
 
     @Column(name = "name", nullable = false, columnDefinition = "NVARCHAR(255)")
     private String name;
