@@ -120,7 +120,6 @@ public class AdminReviewController {
                 reviewRepository.delete(r);
                 updateProductRating(p);
                 redirectAttributes.addFlashAttribute("successMessage", "Đã xóa đánh giá thành công!");
-                
             }
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("errorMessage", "Không thể xóa đánh giá: " + e.getMessage());

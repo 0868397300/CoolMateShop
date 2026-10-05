@@ -1,17 +1,18 @@
 package sopvn.demo.admin;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import sopvn.demo.entity.Order;
+import sopvn.demo.core.exception.CustomException;
 import sopvn.demo.entity.OrderReturn;
 import sopvn.demo.entity.User;
-import sopvn.demo.repository.OrderRepository;
+import sopvn.demo.order.ReturnService;
 import sopvn.demo.repository.OrderReturnRepository;
 import sopvn.demo.repository.UserRepository;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 @Controller
@@ -19,14 +20,14 @@ import java.util.List;
 public class AdminReturnController {
 
     private final OrderReturnRepository orderReturnRepository;
-    private final OrderRepository orderRepository;
+    private final ReturnService returnService;
     private final UserRepository userRepository;
 
     public AdminReturnController(OrderReturnRepository orderReturnRepository,
-                                 OrderRepository orderRepository,
+                                 ReturnService returnService,
                                  UserRepository userRepository) {
         this.orderReturnRepository = orderReturnRepository;
-        this.orderRepository = orderRepository;
+        this.returnService = returnService;
         this.userRepository = userRepository;
     }
 
@@ -40,34 +41,30 @@ public class AdminReturnController {
     @PostMapping("/{id}/status")
     public String updateStatus(@PathVariable("id") Long id,
                                @RequestParam("status") String status,
+                               @RequestParam(value = "refundMethod", defaultValue = "COOLCASH") String refundMethod,
+                               @RequestParam(value = "rejectReason", required = false) String rejectReason,
+                               @AuthenticationPrincipal UserDetails userDetails,
                                RedirectAttributes redirectAttributes) {
-        OrderReturn ret = orderReturnRepository.findById(id).orElse(null);
-        if (ret != null) {
-            ret.setStatus(status);
-
-            // Nếu chấp thuận hoàn tiền vào ví CoolCash
-            if ("COMPLETED".equalsIgnoreCase(status) && "REFUND_COOLCASH".equalsIgnoreCase(ret.getReturnType())) {
-                User u = ret.getUser();
-                if (u != null && ret.getRefundAmount() != null) {
-                    BigDecimal currentBalance = u.getCoolcashBalance() != null ? u.getCoolcashBalance() : BigDecimal.ZERO;
-                    u.setCoolcashBalance(currentBalance.add(ret.getRefundAmount()));
-                    userRepository.save(u);
-                }
+        try {
+            User staffUser = null;
+            if (userDetails != null) {
+                staffUser = userRepository.findByEmail(userDetails.getUsername()).orElse(null);
             }
 
-            Order o = ret.getOrder();
-            if (o != null) {
-                if ("COMPLETED".equalsIgnoreCase(status)) {
-                    o.setOrderStatus("RETURN_COMPLETED");
-                } else if ("REJECTED".equalsIgnoreCase(status)) {
-                    o.setOrderStatus("COMPLETED");
-                }
-                orderRepository.save(o);
-            }
+            String action = ("COMPLETED".equalsIgnoreCase(status) || "APPROVE".equalsIgnoreCase(status)) ? "APPROVE" : "REJECT";
+            returnService.processReturnApproval(id, action, refundMethod, rejectReason, staffUser);
 
-            orderReturnRepository.save(ret);
-            redirectAttributes.addFlashAttribute("successMessage", "Cập nhật trạng thái yêu cầu đổi trả thành công!");
+            if ("APPROVE".equalsIgnoreCase(action)) {
+                redirectAttributes.addFlashAttribute("successMessage", "Chấp thuận và hoàn tất đổi/trả hàng #" + id + " thành công!");
+            } else {
+                redirectAttributes.addFlashAttribute("successMessage", "Đã từ chối yêu cầu đổi/trả hàng #" + id);
+            }
+        } catch (CustomException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        } catch (Exception ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Lỗi khi xử lý yêu cầu đổi trả: " + ex.getMessage());
         }
+
         return "redirect:/admin/doi-tra";
     }
 }

@@ -12,4 +12,8 @@ public interface OrderReturnRepository extends JpaRepository<OrderReturn, Long> 
     List<OrderReturn> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     List<OrderReturn> findByOrderId(Long orderId);
+
+    List<OrderReturn> findByOrderItemId(Long orderItemId);
+
+    List<OrderReturn> findAllByOrderByCreatedAtDesc();
 }

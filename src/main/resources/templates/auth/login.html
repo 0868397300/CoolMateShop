@@ -77,8 +77,11 @@
                 <label class="form-label fw-semibold small">Email</label>
                 <input type="email" name="email" class="form-control" placeholder="name@example.com" required autofocus>
             </div>
-            <div class="mb-4">
-                <label class="form-label fw-semibold small">Mật khẩu</label>
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label fw-semibold small mb-1">Mật khẩu</label>
+                    <a th:href="@{/auth/quen-mat-khau}" class="small text-muted text-decoration-none">Quên mật khẩu?</a>
+                </div>
                 <input type="password" name="password" class="form-control" placeholder="••••••••" required>
             </div>
             <button type="submit" class="btn btn-dark w-100 rounded-pill py-2 fw-bold">Đăng Nhập</button>

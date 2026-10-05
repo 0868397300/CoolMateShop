@@ -2,76 +2,77 @@ package sopvn.demo.wishlist;
 
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import sopvn.demo.entity.Product;
-import sopvn.demo.repository.ProductRepository;
+import sopvn.demo.entity.User;
+import sopvn.demo.entity.WishlistItem;
+import sopvn.demo.repository.UserRepository;
 
 import java.security.Principal;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-@RestController
-@RequestMapping("/api/wishlist")
+@Controller
 public class WishlistController {
 
-    private final ProductRepository productRepository;
+    private final WishlistService wishlistService;
+    private final UserRepository userRepository;
 
-    public WishlistController(ProductRepository productRepository) {
-        this.productRepository = productRepository;
+    public WishlistController(WishlistService wishlistService, UserRepository userRepository) {
+        this.wishlistService = wishlistService;
+        this.userRepository = userRepository;
     }
 
-    @PostMapping("/toggle/{productId}")
+    private User getAuthenticatedUser(Principal principal, HttpSession session) {
+        if (principal != null) {
+            return userRepository.findByEmail(principal.getName()).orElse(null);
+        }
+        if (session != null) {
+            Object sUser = session.getAttribute("currentUser");
+            if (sUser instanceof User) return (User) sUser;
+            Object uid = session.getAttribute("userId");
+            if (uid != null) {
+                try {
+                    return userRepository.findById(Long.valueOf(uid.toString())).orElse(null);
+                } catch (Exception ignored) {}
+            }
+        }
+        return null;
+    }
+
+    @GetMapping("/wishlist")
+    public String viewWishlist(Principal principal, HttpSession session, Model model) {
+        User user = getAuthenticatedUser(principal, session);
+        if (user == null) {
+            return "redirect:/auth/login?required=wishlist";
+        }
+
+        List<WishlistItem> items = wishlistService.getUserWishlistItems(user);
+        model.addAttribute("items", items);
+        model.addAttribute("user", user);
+        return "client/wishlist";
+    }
+
+    @PostMapping("/api/wishlist/toggle/{productId}")
+    @ResponseBody
     public ResponseEntity<Map<String, Object>> toggleWishlist(@PathVariable("productId") Long productId,
                                                               Principal principal,
                                                               HttpSession session) {
-        Map<String, Object> response = new HashMap<>();
+        User user = getAuthenticatedUser(principal, session);
+        Map<String, Object> resp = new HashMap<>();
 
-        boolean isLoggedIn = (principal != null) || (session != null && (session.getAttribute("currentUser") != null || session.getAttribute("userId") != null));
-        if (!isLoggedIn) {
-            response.put("success", false);
-            response.put("authenticated", false);
-            response.put("message", "Bạn cần đăng nhập tài khoản CoolClub để lưu sản phẩm vào danh sách yêu thích.");
-            response.put("redirectUrl", "/auth/login?required=wishlist");
-            return ResponseEntity.ok(response);
+        if (user == null) {
+            resp.put("authenticated", false);
+            resp.put("message", "Vui lòng đăng nhập để lưu sản phẩm yêu thích.");
+            return ResponseEntity.status(401).body(resp);
         }
 
-        Product product = productRepository.findById(productId).orElse(null);
-        if (product == null) {
-            response.put("success", false);
-            response.put("authenticated", true);
-            response.put("message", "Sản phẩm không tồn tại hoặc đã ngừng kinh doanh.");
-            return ResponseEntity.ok(response);
-        }
-
-        @SuppressWarnings("unchecked")
-        Set<Long> wishlist = (Set<Long>) session.getAttribute("USER_WISHLIST");
-        if (wishlist == null) {
-            wishlist = new HashSet<>();
-        }
-
-        boolean isLiked;
-        if (wishlist.contains(productId)) {
-            wishlist.remove(productId);
-            isLiked = false;
-            response.put("message", "Đã xóa sản phẩm '" + product.getName() + "' khỏi danh sách yêu thích.");
-        } else {
-            wishlist.add(productId);
-            isLiked = true;
-            response.put("message", "Đã lưu sản phẩm '" + product.getName() + "' vào danh sách yêu thích của bạn!");
-        }
-
-        session.setAttribute("USER_WISHLIST", wishlist);
-        response.put("success", true);
-        response.put("authenticated", true);
-        response.put("liked", isLiked);
-        response.put("count", wishlist.size());
-
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping("/ids")
-    public ResponseEntity<Set<Long>> getWishlistIds(HttpSession session) {
-        @SuppressWarnings("unchecked")
-        Set<Long> wishlist = (Set<Long>) session.getAttribute("USER_WISHLIST");
-        return ResponseEntity.ok(wishlist != null ? wishlist : Collections.emptySet());
+        boolean inWishlist = wishlistService.toggleWishlist(user, productId);
+        resp.put("authenticated", true);
+        resp.put("inWishlist", inWishlist);
+        resp.put("message", inWishlist ? "Đã thêm vào danh sách yêu thích!" : "Đã bỏ khỏi danh sách yêu thích.");
+        return ResponseEntity.ok(resp);
     }
 }

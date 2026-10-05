@@ -31,7 +31,17 @@ public class InventoryReceipt {
     private String note;
 
     @Column(name = "status", length = 20, nullable = false)
-    private String status = "COMPLETED";
+    private String status = "SUBMITTED";
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_by")
+    private User approvedBy;
+
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;
+
+    @Column(name = "rejected_reason", length = 500)
+    private String rejectedReason;
+
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -113,4 +123,14 @@ public class InventoryReceipt {
     public void setItems(List<InventoryReceiptItem> items) {
         this.items = items;
     }
+
+    public User getApprovedBy() { return approvedBy; }
+    public void setApprovedBy(User approvedBy) { this.approvedBy = approvedBy; }
+
+    public LocalDateTime getApprovedAt() { return approvedAt; }
+    public void setApprovedAt(LocalDateTime approvedAt) { this.approvedAt = approvedAt; }
+
+    public String getRejectedReason() { return rejectedReason; }
+    public void setRejectedReason(String rejectedReason) { this.rejectedReason = rejectedReason; }
+
 }

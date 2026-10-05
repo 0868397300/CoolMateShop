@@ -60,14 +60,10 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        // Luôn đồng bộ mật khẩu tài khoản mẫu về '123456' để đăng nhập thành công 100%
-        try {
-            String hash123 = passwordEncoder.encode("123456");
-            userRepository.findByEmail("admin@coolmate.me").ifPresent(u -> { u.setPasswordHash(hash123); u.setIsActive(true); userRepository.save(u); });
-            userRepository.findByEmail("staff@coolmate.me").ifPresent(u -> { u.setPasswordHash(hash123); u.setIsActive(true); userRepository.save(u); });
-            userRepository.findByEmail("tuan.nguyen@gmail.com").ifPresent(u -> { u.setPasswordHash(hash123); u.setIsActive(true); userRepository.save(u); });
-            userRepository.findByEmail("hoangnam.tran@gmail.com").ifPresent(u -> { u.setPasswordHash(hash123); u.setIsActive(true); userRepository.save(u); });
-        } catch (Exception ignored) {}
+        // Q: Chỉ seed missing data, không ghi đè mật khẩu hoặc reset tài khoản khi khởi động lại
+        if (categoryRepository.count() > 0 && userRepository.count() > 0) {
+            return;
+        }
 
         if (categoryRepository.count() > 0) {
             return; // Đã có dữ liệu

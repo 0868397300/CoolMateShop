@@ -12,7 +12,13 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     Optional<Order> findByOrderCode(String orderCode);
 
+    Optional<Order> findByVnpayTxnRef(String vnpayTxnRef);
+
+    Optional<Order> findByOrderCodeAndRecipientPhone(String orderCode, String recipientPhone);
+
     List<Order> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     List<Order> findAllByOrderByCreatedAtDesc();
+
+    long countByOrderStatus(String orderStatus);
 }

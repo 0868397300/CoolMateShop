@@ -1,23 +1,25 @@
 package sopvn.demo.admin;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import sopvn.demo.core.exception.CustomException;
 import sopvn.demo.entity.InventoryReceipt;
+import sopvn.demo.entity.InventoryReceiptItem;
 import sopvn.demo.entity.ProductVariant;
 import sopvn.demo.entity.User;
 import sopvn.demo.inventory.InventoryService;
+import sopvn.demo.inventory.StockService;
 import sopvn.demo.inventory.dto.InventoryReceiptItemRequest;
 import sopvn.demo.inventory.dto.InventoryReceiptRequest;
 import sopvn.demo.inventory.dto.InventoryStatsDTO;
+import sopvn.demo.repository.InventoryMovementRepository;
+import sopvn.demo.repository.InventoryReceiptRepository;
 import sopvn.demo.repository.ProductVariantRepository;
 import sopvn.demo.repository.UserRepository;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,20 +28,29 @@ import java.util.List;
 public class AdminInventoryController {
 
     private final InventoryService inventoryService;
-    private final ProductVariantRepository variantRepository;
+    private final StockService stockService;
+    private final ProductVariantRepository productVariantRepository;
+    private final InventoryReceiptRepository inventoryReceiptRepository;
+    private final InventoryMovementRepository inventoryMovementRepository;
     private final UserRepository userRepository;
 
     public AdminInventoryController(InventoryService inventoryService,
-                                    ProductVariantRepository variantRepository,
+                                    StockService stockService,
+                                    ProductVariantRepository productVariantRepository,
+                                    InventoryReceiptRepository inventoryReceiptRepository,
+                                    InventoryMovementRepository inventoryMovementRepository,
                                     UserRepository userRepository) {
         this.inventoryService = inventoryService;
-        this.variantRepository = variantRepository;
+        this.stockService = stockService;
+        this.productVariantRepository = productVariantRepository;
+        this.inventoryReceiptRepository = inventoryReceiptRepository;
+        this.inventoryMovementRepository = inventoryMovementRepository;
         this.userRepository = userRepository;
     }
 
     @GetMapping
     public String listReceipts(Model model) {
-        List<InventoryReceipt> receipts = inventoryService.getAllReceipts();
+        List<InventoryReceipt> receipts = inventoryReceiptRepository.findAll();
         InventoryStatsDTO stats = inventoryService.getInventoryStats();
 
         model.addAttribute("receipts", receipts);
@@ -48,86 +59,96 @@ public class AdminInventoryController {
     }
 
     @GetMapping("/tao-moi")
-    public String createReceiptForm(@RequestParam(value = "sku", required = false) String prefillSku, Model model) {
-        List<ProductVariant> variants = variantRepository.findByIsActiveTrue();
-        
-        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
-        String defaultCode = "PNK" + LocalDateTime.now().format(dtf);
-
-        List<java.util.Map<String, Object>> variantData = new java.util.ArrayList<>();
-        for (ProductVariant v : variants) {
-            java.util.Map<String, Object> map = new java.util.HashMap<>();
-            map.put("id", v.getId());
-            map.put("sku", v.getSku());
-            map.put("stockQuantity", v.getStockQuantity());
-            map.put("importPrice", v.getImportPrice());
-            java.util.Map<String, Object> p = new java.util.HashMap<>();
-            p.put("name", v.getProduct() != null ? v.getProduct().getName() : "");
-            map.put("product", p);
-            java.util.Map<String, Object> c = new java.util.HashMap<>();
-            c.put("name", v.getColor() != null ? v.getColor().getName() : "");
-            map.put("color", c);
-            java.util.Map<String, Object> s = new java.util.HashMap<>();
-            s.put("name", v.getSize() != null ? v.getSize().getName() : "");
-            map.put("size", s);
-            variantData.add(map);
-        }
-
+    public String showCreateForm(Model model) {
+        List<ProductVariant> variants = productVariantRepository.findByIsActiveTrue();
         model.addAttribute("variants", variants);
-        model.addAttribute("variantData", variantData);
-        model.addAttribute("defaultCode", defaultCode);
-        model.addAttribute("prefillSku", prefillSku);
         return "admin/inventory-create";
     }
 
-    @PostMapping("/luu")
-    public String saveReceipt(@RequestParam("supplierName") String supplierName,
-                              @RequestParam(value = "receiptCode", required = false) String receiptCode,
-                              @RequestParam(value = "note", required = false) String note,
-                              @RequestParam("variantId[]") Long[] variantIds,
-                              @RequestParam("quantity[]") Integer[] quantities,
-                              @RequestParam("importPrice[]") BigDecimal[] importPrices,
-                              RedirectAttributes redirectAttributes) {
+    @PostMapping("/tao-moi")
+    public String createReceipt(@RequestParam("supplierName") String supplierName,
+                                @RequestParam(value = "note", required = false) String note,
+                                @RequestParam("variantId") List<Long> variantIds,
+                                @RequestParam("quantity") List<Integer> quantities,
+                                @RequestParam("importPrice") List<java.math.BigDecimal> importPrices,
+                                Principal principal,
+                                RedirectAttributes redirectAttributes) {
         try {
-            InventoryReceiptRequest request = new InventoryReceiptRequest();
-            request.setSupplierName(supplierName);
-            request.setReceiptCode(receiptCode);
-            request.setNote(note);
+            User user = userRepository.findByEmail(principal.getName()).orElseThrow();
+            InventoryReceiptRequest req = new InventoryReceiptRequest();
+            req.setSupplierName(supplierName);
+            req.setNote(note);
 
             List<InventoryReceiptItemRequest> items = new ArrayList<>();
-            if (variantIds != null) {
-                for (int i = 0; i < variantIds.length; i++) {
-                    if (variantIds[i] != null && quantities[i] != null && importPrices[i] != null) {
-                        items.add(new InventoryReceiptItemRequest(variantIds[i], quantities[i], importPrices[i]));
-                    }
+            for (int i = 0; i < variantIds.size(); i++) {
+                if (variantIds.get(i) != null && quantities.get(i) != null && quantities.get(i) > 0) {
+                    InventoryReceiptItemRequest it = new InventoryReceiptItemRequest();
+                    it.setVariantId(variantIds.get(i));
+                    it.setQuantity(quantities.get(i));
+                    it.setImportPrice(importPrices.get(i));
+                    items.add(it);
                 }
             }
-            request.setItems(items);
+            req.setItems(items);
 
-            User adminUser = userRepository.findById(1L).orElseGet(() -> {
-                List<User> all = userRepository.findAll();
-                return all.isEmpty() ? null : all.get(0);
-            });
-
-            InventoryReceipt saved = inventoryService.createReceipt(request, adminUser);
+            InventoryReceipt created = inventoryService.createReceipt(req, user.getId());
             redirectAttributes.addFlashAttribute("successMessage", 
-                    "Tạo phiếu nhập kho #" + saved.getReceiptCode() + " thành công! Số lượng tồn kho và giá vốn SKU đã được cập nhật.");
-            return "redirect:/admin/nhap-kho/" + saved.getId();
-        } catch (CustomException ex) {
-            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
-            return "redirect:/admin/nhap-kho/tao-moi";
-        } catch (Exception ex) {
-            redirectAttributes.addFlashAttribute("errorMessage", "Lỗi xử lý phiếu nhập: " + ex.getMessage());
+                    "Phiếu nhập kho #" + created.getReceiptCode() + " đã được tạo ở trạng thái SUBMITTED, chờ Admin phê duyệt.");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Lỗi khi tạo phiếu nhập kho: " + e.getMessage());
             return "redirect:/admin/nhap-kho/tao-moi";
         }
+        return "redirect:/admin/nhap-kho";
     }
 
     @GetMapping("/{id}")
-    public String viewReceiptDetail(@PathVariable("id") Long id, Model model) {
-        InventoryReceipt receipt = inventoryService.getReceiptById(id)
-                .orElseThrow(() -> new CustomException("Không tìm thấy phiếu nhập kho ID: " + id));
-
+    public String viewDetail(@PathVariable("id") Long id, Model model) {
+        InventoryReceipt receipt = inventoryReceiptRepository.findById(id).orElseThrow();
         model.addAttribute("receipt", receipt);
         return "admin/inventory-detail";
+    }
+
+    /**
+     * O: Admin phê duyệt phiếu nhập hàng: Tăng tồn kho & Cập nhật Weighted Average Cost
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/{id}/duyet")
+    public String approveReceipt(@PathVariable("id") Long id,
+                                 Principal principal,
+                                 RedirectAttributes redirectAttributes) {
+        try {
+            User admin = userRepository.findByEmail(principal.getName()).orElseThrow();
+            InventoryReceipt receipt = inventoryReceiptRepository.findById(id).orElseThrow();
+            stockService.applyInventoryReceipt(receipt, admin);
+            inventoryReceiptRepository.save(receipt);
+
+            redirectAttributes.addFlashAttribute("successMessage", 
+                    "Phê duyệt phiếu nhập kho #" + receipt.getReceiptCode() + " thành công! Đã tự động cập nhật giá vốn bình quân và số lượng tồn kho.");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Lỗi khi duyệt phiếu: " + e.getMessage());
+        }
+        return "redirect:/admin/nhap-kho/" + id;
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/{id}/tu-choi")
+    public String rejectReceipt(@PathVariable("id") Long id,
+                                @RequestParam(value = "reason", required = false) String reason,
+                                Principal principal,
+                                RedirectAttributes redirectAttributes) {
+        try {
+            User admin = userRepository.findByEmail(principal.getName()).orElseThrow();
+            InventoryReceipt receipt = inventoryReceiptRepository.findById(id).orElseThrow();
+            receipt.setStatus("REJECTED");
+            receipt.setRejectedReason(reason != null ? reason : "Không đạt chất lượng kiểm định.");
+            receipt.setApprovedBy(admin);
+            receipt.setApprovedAt(java.time.LocalDateTime.now());
+            inventoryReceiptRepository.save(receipt);
+
+            redirectAttributes.addFlashAttribute("successMessage", "Đã từ chối phiếu nhập kho #" + receipt.getReceiptCode());
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Lỗi: " + e.getMessage());
+        }
+        return "redirect:/admin/nhap-kho/" + id;
     }
 }

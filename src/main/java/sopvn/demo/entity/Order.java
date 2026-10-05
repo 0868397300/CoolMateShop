@@ -72,6 +72,27 @@ public class Order {
 
     @Column(name = "vnpay_transaction_no", length = 100)
     private String vnpayTransactionNo;
+    @Column(name = "vnpay_txn_ref", length = 100, unique = true)
+    private String vnpayTxnRef;
+
+    @Column(name = "payment_paid_at")
+    private LocalDateTime paymentPaidAt;
+
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
+
+    @Column(name = "cancelled_reason", length = 500)
+    private String cancelledReason;
+
+    @Column(name = "payment_response_code", length = 50)
+    private String paymentResponseCode;
+
+    @Column(name = "payment_bank_code", length = 50)
+    private String paymentBankCode;
+
+    @Column(name = "payment_failure_reason", length = 500)
+    private String paymentFailureReason;
+
 
     @Column(name = "order_status", length = 30, nullable = false)
     private String orderStatus = "PENDING";
@@ -284,4 +305,26 @@ public class Order {
     public void setItems(List<OrderItem> items) {
         this.items = items;
     }
+
+    public String getVnpayTxnRef() { return vnpayTxnRef; }
+    public void setVnpayTxnRef(String vnpayTxnRef) { this.vnpayTxnRef = vnpayTxnRef; }
+
+    public LocalDateTime getPaymentPaidAt() { return paymentPaidAt; }
+    public void setPaymentPaidAt(LocalDateTime paymentPaidAt) { this.paymentPaidAt = paymentPaidAt; }
+
+    public LocalDateTime getCancelledAt() { return cancelledAt; }
+    public void setCancelledAt(LocalDateTime cancelledAt) { this.cancelledAt = cancelledAt; }
+
+    public String getCancelledReason() { return cancelledReason; }
+    public void setCancelledReason(String cancelledReason) { this.cancelledReason = cancelledReason; }
+
+    public String getPaymentResponseCode() { return paymentResponseCode; }
+    public void setPaymentResponseCode(String paymentResponseCode) { this.paymentResponseCode = paymentResponseCode; }
+
+    public String getPaymentBankCode() { return paymentBankCode; }
+    public void setPaymentBankCode(String paymentBankCode) { this.paymentBankCode = paymentBankCode; }
+
+    public String getPaymentFailureReason() { return paymentFailureReason; }
+    public void setPaymentFailureReason(String paymentFailureReason) { this.paymentFailureReason = paymentFailureReason; }
+
 }

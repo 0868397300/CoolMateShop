@@ -5,15 +5,15 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import sopvn.demo.core.exception.CustomException;
 import sopvn.demo.entity.Order;
-import sopvn.demo.entity.OrderItem;
 import sopvn.demo.entity.OrderReturn;
 import sopvn.demo.entity.User;
+import sopvn.demo.order.ReturnService;
 import sopvn.demo.repository.OrderRepository;
 import sopvn.demo.repository.OrderReturnRepository;
 import sopvn.demo.repository.UserRepository;
 
-import java.math.BigDecimal;
 import java.security.Principal;
 
 @Controller
@@ -22,13 +22,16 @@ public class ReturnController {
     private final OrderRepository orderRepository;
     private final OrderReturnRepository orderReturnRepository;
     private final UserRepository userRepository;
+    private final ReturnService returnService;
 
     public ReturnController(OrderRepository orderRepository,
                             OrderReturnRepository orderReturnRepository,
-                            UserRepository userRepository) {
+                            UserRepository userRepository,
+                            ReturnService returnService) {
         this.orderRepository = orderRepository;
         this.orderReturnRepository = orderReturnRepository;
         this.userRepository = userRepository;
+        this.returnService = returnService;
     }
 
     private User getCurrentUser(Principal principal, HttpSession session) {
@@ -54,19 +57,23 @@ public class ReturnController {
      * Trang thông tin chính sách đổi trả 60 ngày của Coolmate
      */
     @GetMapping({"/chinh-sach-doi-tra", "/doi-tra/chinh-sach"})
-    public String returnPolicyPage() {
+    public String returnPolicyPage(Principal principal, HttpSession session, Model model) {
+        User user = getCurrentUser(principal, session);
+        model.addAttribute("currentUser", user);
         return "return-policy";
     }
 
     /**
-     * Khách hàng gửi yêu cầu Đổi / Trả hàng cho đơn hàng đã nhận
+     * F1-F5: Khách hàng gửi yêu cầu Đổi / Trả hàng chuẩn nghiệp vụ
      */
     @PostMapping("/doi-tra/yeu-cau")
     public String submitReturnRequest(@RequestParam("orderId") Long orderId,
-                                      @RequestParam(value = "orderItemId", required = false) Long orderItemId,
+                                      @RequestParam("orderItemId") Long orderItemId,
+                                      @RequestParam(value = "quantity", defaultValue = "1") int quantity,
                                       @RequestParam("returnType") String returnType,
+                                      @RequestParam(value = "targetVariantId", required = false) Long targetVariantId,
                                       @RequestParam("reason") String reason,
-                                      @RequestParam(value = "note", required = false) String note,
+                                      @RequestParam(value = "evidenceImages", required = false) String evidenceImages,
                                       Principal principal,
                                       HttpSession session,
                                       RedirectAttributes redirectAttributes) {
@@ -76,42 +83,19 @@ public class ReturnController {
             return "redirect:/auth/login?required=order";
         }
 
-        Order order = orderRepository.findById(orderId).orElse(null);
-        if (order == null || !order.getUser().getId().equals(user.getId())) {
-            redirectAttributes.addFlashAttribute("errorMessage", "Không tìm thấy thông tin đơn hàng hợp lệ.");
-            return "redirect:/don-hang";
+        try {
+            OrderReturn orderReturn = returnService.requestReturn(
+                    user, orderId, orderItemId, quantity, returnType, targetVariantId, reason, evidenceImages
+            );
+
+            redirectAttributes.addFlashAttribute("successMessage", 
+                    "Yêu cầu đổi/trả hàng #" + orderReturn.getId() + " đã được tiếp nhận thành công! Chuyên viên Coolmate sẽ liên hệ trong 24h để bưu tá đến tận nơi đổi hàng miễn phí cho bạn.");
+        } catch (CustomException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        } catch (Exception ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Không thể gửi yêu cầu đổi trả: " + ex.getMessage());
         }
 
-        OrderReturn req = new OrderReturn();
-        req.setOrder(order);
-        req.setUser(user);
-
-        if (order.getItems() != null && !order.getItems().isEmpty()) {
-            OrderItem selectedItem = order.getItems().get(0);
-            if (orderItemId != null) {
-                for (OrderItem oi : order.getItems()) {
-                    if (oi.getId().equals(orderItemId)) {
-                        selectedItem = oi;
-                        break;
-                    }
-                }
-            }
-            req.setOrderItem(selectedItem);
-        }
-
-        req.setReturnType(returnType);
-        req.setReason(reason + (note != null && !note.isEmpty() ? " - Ghi chú: " + note : ""));
-        req.setStatus("PENDING");
-        req.setQuantity(1);
-        req.setRefundAmount(order.getFinalAmount() != null ? order.getFinalAmount() : BigDecimal.ZERO);
-        orderReturnRepository.save(req);
-
-        order.setOrderStatus("RETURN_REQUESTED");
-        orderRepository.save(order);
-
-        redirectAttributes.addFlashAttribute("successMessage", 
-                "Yêu cầu đổi/trả hàng cho đơn " + order.getOrderCode() + " đã được ghi nhận thành công! Chuyên viên CSKH Coolmate sẽ liên hệ trong 24h để bưu tá đến tận nơi đổi hàng cho bạn.");
-
-        return "redirect:/don-hang/" + order.getOrderCode();
+        return "redirect:/don-hang/" + orderId;
     }
 }

@@ -4,11 +4,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import sopvn.demo.entity.Color;
-import sopvn.demo.entity.Product;
-import sopvn.demo.entity.ProductImage;
-import sopvn.demo.entity.ProductVariant;
-import sopvn.demo.entity.Size;
+import sopvn.demo.core.service.ReviewService;
+import sopvn.demo.entity.*;
 import sopvn.demo.repository.ProductRepository;
 import sopvn.demo.repository.ProductVariantRepository;
 
@@ -19,10 +16,14 @@ public class ProductController {
 
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final ReviewService reviewService;
 
-    public ProductController(ProductRepository productRepository, ProductVariantRepository productVariantRepository) {
+    public ProductController(ProductRepository productRepository, 
+                             ProductVariantRepository productVariantRepository,
+                             ReviewService reviewService) {
         this.productRepository = productRepository;
         this.productVariantRepository = productVariantRepository;
+        this.reviewService = reviewService;
     }
 
     @GetMapping("/san-pham/{slug}")
@@ -72,12 +73,30 @@ public class ProductController {
             }
         }
 
+        // Lấy danh sách đánh giá đã duyệt (Verified purchase reviews)
+        List<Review> approvedReviews = reviewService.getApprovedReviews(product.getId());
+        int tightCount = 0;
+        int trueToSizeCount = 0;
+        int looseCount = 0;
+        for (Review r : approvedReviews) {
+            if ("TIGHT".equalsIgnoreCase(r.getFitFeedback())) tightCount++;
+            else if ("LOOSE".equalsIgnoreCase(r.getFitFeedback())) looseCount++;
+            else trueToSizeCount++;
+        }
+
+        Map<String, Integer> fitStats = new HashMap<>();
+        fitStats.put("tight", tightCount);
+        fitStats.put("trueToSize", trueToSizeCount);
+        fitStats.put("loose", looseCount);
+
         model.addAttribute("product", product);
         model.addAttribute("variants", variants);
         model.addAttribute("variantData", variantData);
         model.addAttribute("distinctColors", distinctColors);
         model.addAttribute("distinctSizes", distinctSizes);
         model.addAttribute("colorImageMap", colorImageMap);
+        model.addAttribute("reviews", approvedReviews);
+        model.addAttribute("fitStats", fitStats);
         return "product-detail";
     }
 }

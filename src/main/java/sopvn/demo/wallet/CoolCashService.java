@@ -2,6 +2,7 @@ package sopvn.demo.wallet;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import sopvn.demo.core.exception.CustomException;
 import sopvn.demo.entity.CoolCashTransaction;
 import sopvn.demo.entity.Order;
 import sopvn.demo.entity.User;
@@ -29,9 +30,21 @@ public class CoolCashService {
     }
 
     @Transactional
-    public void rewardOrderCashback(User user, Order order, BigDecimal amount) {
+    public void rewardOrderCashback(User user, Order order, BigDecimal amount, int cashbackRate) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) return;
-        user.setCoolcashBalance(user.getCoolcashBalance().add(amount));
+        if (user == null || order == null) return;
+
+        // Idempotency: Kiểm tra nếu đơn này đã được nhận hoàn tiền rồi thì không tạo lại
+        List<CoolCashTransaction> existing = coolCashTransactionRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+        for (CoolCashTransaction tx : existing) {
+            if ("EARN_ORDER".equalsIgnoreCase(tx.getTransactionType()) && 
+                tx.getOrder() != null && tx.getOrder().getId().equals(order.getId())) {
+                return; // Đã nhận rồi, bỏ qua
+            }
+        }
+
+        BigDecimal current = user.getCoolcashBalance() != null ? user.getCoolcashBalance() : BigDecimal.ZERO;
+        user.setCoolcashBalance(current.add(amount));
         userRepository.save(user);
 
         CoolCashTransaction tx = new CoolCashTransaction();
@@ -40,7 +53,74 @@ public class CoolCashService {
         tx.setAmount(amount);
         tx.setTransactionType("EARN_ORDER");
         tx.setStatus("COMPLETED");
-        tx.setDescription("Hoàn tiền CoolCash từ đơn hàng #" + order.getOrderCode());
+        tx.setDescription("Hoàn tiền " + cashbackRate + "% CoolClub cho đơn hàng #" + order.getOrderCode());
+        tx.setCreatedAt(LocalDateTime.now());
+        coolCashTransactionRepository.save(tx);
+    }
+
+    @Transactional
+    public void spendCoolCash(User user, Order order, BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) return;
+        if (user == null) return;
+
+        BigDecimal current = user.getCoolcashBalance() != null ? user.getCoolcashBalance() : BigDecimal.ZERO;
+        if (current.compareTo(amount) < 0) {
+            throw new CustomException("Số dư ví CoolCash không đủ (Số dư hiện tại: " + current + "đ, yêu cầu: " + amount + "đ).");
+        }
+
+        user.setCoolcashBalance(current.subtract(amount));
+        userRepository.save(user);
+
+        CoolCashTransaction tx = new CoolCashTransaction();
+        tx.setUser(user);
+        tx.setOrder(order);
+        tx.setAmount(amount.negate()); // Số âm cho giao dịch chi tiêu
+        tx.setTransactionType("SPEND_ORDER");
+        tx.setStatus("COMPLETED");
+        tx.setDescription("Thanh toán đơn hàng #" + (order != null ? order.getOrderCode() : ""));
+        tx.setCreatedAt(LocalDateTime.now());
+        coolCashTransactionRepository.save(tx);
+    }
+
+    @Transactional
+    public void refundCoolCash(User user, Order order, BigDecimal amount, String reason) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) return;
+        if (user == null) return;
+
+        BigDecimal current = user.getCoolcashBalance() != null ? user.getCoolcashBalance() : BigDecimal.ZERO;
+        user.setCoolcashBalance(current.add(amount));
+        userRepository.save(user);
+
+        CoolCashTransaction tx = new CoolCashTransaction();
+        tx.setUser(user);
+        tx.setOrder(order);
+        tx.setAmount(amount);
+        tx.setTransactionType("REFUND_RETURN");
+        tx.setStatus("COMPLETED");
+        tx.setDescription(reason != null ? reason : "Hoàn tiền ví CoolCash");
+        tx.setCreatedAt(LocalDateTime.now());
+        coolCashTransactionRepository.save(tx);
+    }
+
+    @Transactional
+    public void adminAdjust(User user, BigDecimal amount, String type, String reason) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) return;
+        if (user == null) return;
+
+        BigDecimal actualAmount = "MINUS".equalsIgnoreCase(type) ? amount.negate() : amount;
+        BigDecimal current = user.getCoolcashBalance() != null ? user.getCoolcashBalance() : BigDecimal.ZERO;
+        BigDecimal newBal = current.add(actualAmount);
+        if (newBal.compareTo(BigDecimal.ZERO) < 0) newBal = BigDecimal.ZERO;
+
+        user.setCoolcashBalance(newBal);
+        userRepository.save(user);
+
+        CoolCashTransaction tx = new CoolCashTransaction();
+        tx.setUser(user);
+        tx.setAmount(actualAmount);
+        tx.setTransactionType("ADMIN_ADJUST");
+        tx.setStatus("COMPLETED");
+        tx.setDescription("Admin điều chỉnh ví: " + (reason != null ? reason : ""));
         tx.setCreatedAt(LocalDateTime.now());
         coolCashTransactionRepository.save(tx);
     }

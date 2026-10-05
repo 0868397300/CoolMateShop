@@ -47,6 +47,21 @@ public class OrderReturn {
 
     @Column(name = "refund_amount", precision = 18, scale = 2, nullable = false)
     private BigDecimal refundAmount = BigDecimal.ZERO;
+    @Column(name = "processed_at")
+    private LocalDateTime processedAt;
+
+    @Column(name = "refund_method", length = 50)
+    private String refundMethod; // ORIGINAL_PAYMENT, COOLCASH, BANK_TRANSFER
+
+    @Column(name = "refund_reference", length = 100)
+    private String refundReference;
+
+    @Column(name = "refund_status", length = 50)
+    private String refundStatus;
+
+    @Column(name = "rejection_reason", length = 500)
+    private String rejectionReason;
+
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -150,4 +165,20 @@ public class OrderReturn {
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
+
+    public LocalDateTime getProcessedAt() { return processedAt; }
+    public void setProcessedAt(LocalDateTime processedAt) { this.processedAt = processedAt; }
+
+    public String getRefundMethod() { return refundMethod; }
+    public void setRefundMethod(String refundMethod) { this.refundMethod = refundMethod; }
+
+    public String getRefundReference() { return refundReference; }
+    public void setRefundReference(String refundReference) { this.refundReference = refundReference; }
+
+    public String getRefundStatus() { return refundStatus; }
+    public void setRefundStatus(String refundStatus) { this.refundStatus = refundStatus; }
+
+    public String getRejectionReason() { return rejectionReason; }
+    public void setRejectionReason(String rejectionReason) { this.rejectionReason = rejectionReason; }
+
 }

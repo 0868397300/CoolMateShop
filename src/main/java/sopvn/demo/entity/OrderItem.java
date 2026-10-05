@@ -44,6 +44,9 @@ public class OrderItem {
 
     @Column(name = "is_reviewed", nullable = false)
     private Boolean isReviewed = false;
+    @Column(name = "cost_price_snapshot", precision = 18, scale = 2)
+    private BigDecimal costPriceSnapshot;
+
 
     public OrderItem() {
     }
@@ -135,4 +138,13 @@ public class OrderItem {
     public void setIsReviewed(Boolean isReviewed) {
         this.isReviewed = isReviewed;
     }
+
+    public BigDecimal getCostPriceSnapshot() {
+        return costPriceSnapshot;
+    }
+
+    public void setCostPriceSnapshot(BigDecimal costPriceSnapshot) {
+        this.costPriceSnapshot = costPriceSnapshot;
+    }
+
 }

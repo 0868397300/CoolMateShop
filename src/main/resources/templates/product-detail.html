@@ -720,6 +720,99 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Customer Reviews Section (G3 Verified Purchase Reviews) -->
+            <div class="row mt-5 pt-4 border-top">
+                <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div>
+                            <h4 class="fw-bold mb-1"><i class="bi bi-star-fill text-warning me-2"></i>Đánh Giá Từ Khách Hàng</h4>
+                            <p class="text-muted small mb-0">100% đánh giá xác thực từ khách hàng đã mua và trải nghiệm sản phẩm</p>
+                        </div>
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="text-end">
+                                <span class="display-6 fw-bold text-dark" th:text="${product.ratingAvg}">5.0</span>
+                                <span class="text-muted small">/ 5.0</span>
+                                <div class="rating-stars small">
+                                    <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
+                                </div>
+                            </div>
+                            <span class="badge bg-light text-dark border p-2 rounded-3" th:text="${(reviews != null ? reviews.size() : 0) + ' nhận xét'}">0 nhận xét</span>
+                        </div>
+                    </div>
+
+                    <!-- Fit Statistics Bar -->
+                    <div class="card border-0 bg-light rounded-4 p-3 mb-4" th:if="${reviews != null and !reviews.isEmpty()}">
+                        <div class="row align-items-center g-3 text-center">
+                            <div class="col-md-4">
+                                <span class="text-muted small d-block mb-1">Hơi ôm sát:</span>
+                                <strong class="text-dark" th:text="${fitStats != null ? fitStats.tight : 0}">0</strong> <small class="text-muted">người</small>
+                            </div>
+                            <div class="col-md-4 border-start border-end">
+                                <span class="text-muted small d-block mb-1">Vừa vặn hoàn hảo:</span>
+                                <strong class="text-success fw-bold" th:text="${fitStats != null ? fitStats.trueToSize : 0}">0</strong> <small class="text-muted">người</small>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="text-muted small d-block mb-1">Thoải mái rộng rãi:</span>
+                                <strong class="text-dark" th:text="${fitStats != null ? fitStats.loose : 0}">0</strong> <small class="text-muted">người</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Reviews List -->
+                    <div th:if="${reviews == null or reviews.isEmpty()}" class="text-center py-5 bg-white rounded-4 border">
+                        <i class="bi bi-chat-heart display-4 text-muted mb-2 d-block"></i>
+                        <h6 class="fw-bold text-dark">Chưa có đánh giá nào cho sản phẩm này</h6>
+                        <p class="text-muted small mb-0">Hãy là người đầu tiên sở hữu và đánh giá sản phẩm sau khi nhận hàng thành công!</p>
+                    </div>
+
+                    <div class="d-flex flex-column gap-3" th:if="${reviews != null and !reviews.isEmpty()}">
+                        <div class="card border-0 shadow-sm rounded-4 p-4" th:each="r : ${reviews}">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <strong class="text-dark" th:text="${r.user != null ? r.user.fullName : 'Khách hàng Coolmate'}">Nguyễn Văn A</strong>
+                                        <span class="badge bg-success-subtle text-success small"><i class="bi bi-patch-check-fill me-1"></i>Đã mua hàng</span>
+                                    </div>
+                                    <div class="rating-stars small mb-2">
+                                        <i class="bi bi-star-fill" th:each="star : ${#numbers.sequence(1, r.rating)}"></i>
+                                    </div>
+                                </div>
+                                <small class="text-muted" th:text="${r.createdAt != null ? #temporals.format(r.createdAt, 'dd/MM/yyyy') : ''}">01/01/2026</small>
+                            </div>
+
+                            <div class="mb-2 text-muted small d-flex flex-wrap gap-3 bg-light p-2 rounded-3">
+                                <span th:if="${r.purchasedColor != null}">Màu: <strong class="text-dark" th:text="${r.purchasedColor}">Đen</strong></span>
+                                <span th:if="${r.purchasedSize != null}">Size: <strong class="text-dark" th:text="${r.purchasedSize}">L</strong></span>
+                                <span th:if="${r.customerHeightCm != null and r.customerHeightCm > 0}">Cao: <strong class="text-dark" th:text="${r.customerHeightCm + ' cm'}">172 cm</strong></span>
+                                <span th:if="${r.customerWeightKg != null and r.customerWeightKg > 0}">Nặng: <strong class="text-dark" th:text="${r.customerWeightKg + ' kg'}">68 kg</strong></span>
+                                <span th:if="${r.fitFeedback != null}">Độ vừa: 
+                                    <strong class="text-primary" th:if="${r.fitFeedback == 'TRUE_TO_SIZE'}">Vừa vặn</strong>
+                                    <strong class="text-warning" th:if="${r.fitFeedback == 'TIGHT'}">Hơi ôm</strong>
+                                    <strong class="text-info" th:if="${r.fitFeedback == 'LOOSE'}">Rộng rãi</strong>
+                                </span>
+                            </div>
+
+                            <p class="text-dark mb-2" th:text="${r.comment}">Sản phẩm vải mặc rất mát, co giãn tốt, đóng gói chỉn chu.</p>
+
+                            <!-- Review images if any -->
+                            <div class="d-flex gap-2 mb-2" th:if="${r.imageUrls != null and !r.imageUrls.isEmpty()}">
+                                <img th:each="img : ${#strings.arraySplit(r.imageUrls, ',')}" th:src="${img}" class="rounded-3 border" style="width: 70px; height: 70px; object-fit: cover;" alt="Review photo">
+                            </div>
+
+                            <!-- Admin Reply -->
+                            <div class="bg-light border-start border-primary border-3 p-3 rounded-end mt-2" th:if="${r.adminReply != null and !r.adminReply.isEmpty()}">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <span class="badge bg-dark">Coolmate phản hồi</span>
+                                    <small class="text-muted" th:if="${r.adminRepliedAt != null}" th:text="${#temporals.format(r.adminRepliedAt, 'dd/MM/yyyy')}">02/01/2026</small>
+                                </div>
+                                <small class="text-dark" th:text="${r.adminReply}">Cảm ơn bạn đã tin tưởng và đồng hành cùng Coolmate!</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </main>
 
@@ -1120,12 +1213,13 @@
             });
         });
 
-        // Size Modal Calculator
+        // Size Modal Calculator via Server-Side SizeRecommendationService (H1)
         const mH = document.getElementById('mHeightInput');
         const mW = document.getElementById('mWeightInput');
         const mHVal = document.getElementById('mHeightVal');
         const mWVal = document.getElementById('mWeightVal');
         const mRes = document.getElementById('mSuggestedSize');
+        let sizeDebounceTimer = null;
 
         function updateModalSize() {
             if (!mH || !mW) return;
@@ -1134,19 +1228,39 @@
             if (mHVal) mHVal.textContent = h;
             if (mWVal) mWVal.textContent = w;
 
-            let s = 'L';
-            if (h < 165 && w < 57) s = 'S';
-            else if (h <= 170 && w <= 65) s = 'M';
-            else if (h <= 175 && w <= 73) s = 'L';
-            else if (h <= 180 && w <= 81) s = 'XL';
-            else if (h <= 185 && w <= 88) s = '2XL';
-            else s = '3XL';
-
-            if (mRes) mRes.textContent = s;
+            clearTimeout(sizeDebounceTimer);
+            sizeDebounceTimer = setTimeout(() => {
+                const fitType = /*[[${product.fitType}]]*/ 'REGULAR';
+                fetch(`/api/size-advisor?height=${h}&weight=${w}&fitType=${encodeURIComponent(fitType || 'REGULAR')}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data && data.recommendedSize) {
+                            if (mRes) mRes.textContent = data.recommendedSize;
+                        }
+                    })
+                    .catch(err => console.error('Size advisor err:', err));
+            }, 150);
         }
 
         if (mH) mH.addEventListener('input', updateModalSize);
         if (mW) mW.addEventListener('input', updateModalSize);
+
+        // Apply size button
+        const applySizeBtn = document.querySelector('#sizeModal button[data-bs-dismiss="modal"]');
+        if (applySizeBtn) {
+            applySizeBtn.addEventListener('click', () => {
+                const recSize = mRes ? mRes.textContent.trim() : '';
+                if (recSize) {
+                    const sizeButtons = document.querySelectorAll('.size-btn');
+                    for (let btn of sizeButtons) {
+                        if (btn.textContent.trim().toUpperCase() === recSize.toUpperCase() && !btn.classList.contains('disabled')) {
+                            btn.click();
+                            break;
+                        }
+                    }
+                }
+            });
+        }
     </script>
 </body>
 </html>

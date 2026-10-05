@@ -8,6 +8,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -21,6 +22,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import sopvn.demo.cart.CartService;
 import sopvn.demo.entity.User;
 import sopvn.demo.repository.UserRepository;
 
@@ -30,32 +32,21 @@ import java.util.stream.Collectors;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
+    private final CartService cartService;
+
+    public SecurityConfig(CartService cartService) {
+        this.cartService = cartService;
+    }
+
+    /**
+     * B7: Bắt buộc dùng BCryptPasswordEncoder chuẩn, loại bỏ hoàn toàn so sánh plaintext
+     */
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new PasswordEncoder() {
-            private final BCryptPasswordEncoder bcrypt = new BCryptPasswordEncoder();
-
-            @Override
-            public String encode(CharSequence rawPassword) {
-                return bcrypt.encode(rawPassword);
-            }
-
-            @Override
-            public boolean matches(CharSequence rawPassword, String encodedPassword) {
-                if (encodedPassword == null) return false;
-                if (encodedPassword.equals(rawPassword.toString())) {
-                    return true;
-                }
-                try {
-                    if (bcrypt.matches(rawPassword, encodedPassword)) {
-                        return true;
-                    }
-                } catch (Exception ignored) {}
-                return false;
-            }
-        };
+        return new BCryptPasswordEncoder();
     }
 
     @Bean
@@ -70,7 +61,10 @@ public class SecurityConfig {
 
             List<SimpleGrantedAuthority> authorities = user.getRoles() != null
                     ? user.getRoles().stream()
-                            .map(role -> new SimpleGrantedAuthority(role.getRoleName()))
+                            .map(role -> {
+                                String r = role.getRoleName();
+                                return new SimpleGrantedAuthority(r.startsWith("ROLE_") ? r : "ROLE_" + r);
+                            })
                             .collect(Collectors.toList())
                     : Collections.emptyList();
 
@@ -119,12 +113,16 @@ public class SecurityConfig {
 
             if (uri.startsWith("/gio-hang")) {
                 response.sendRedirect("/auth/login?required=cart");
-            } else if (uri.startsWith("/thanh-toan")) {
+            } else if (uri.startsWith("/thanh-toan/checkout")) {
                 response.sendRedirect("/auth/login?required=checkout");
             } else if (uri.startsWith("/don-hang")) {
                 response.sendRedirect("/auth/login?required=order");
-            } else if (uri.startsWith("/vi-coolcash")) {
+            } else if (uri.startsWith("/vi-coolcash") || uri.startsWith("/hoi-vien")) {
                 response.sendRedirect("/auth/login?required=wallet");
+            } else if (uri.startsWith("/thong-tin-tai-khoan") || uri.startsWith("/tai-khoan") || uri.startsWith("/profile")) {
+                response.sendRedirect("/auth/login?required=profile");
+            } else if (uri.startsWith("/admin")) {
+                response.sendRedirect("/auth/login?required=admin");
             } else {
                 response.sendRedirect("/auth/login");
             }
@@ -147,6 +145,9 @@ public class SecurityConfig {
                 session.setAttribute("USER_EMAIL", user.getEmail());
                 session.setAttribute("USER_NAME", user.getFullName());
                 session.setAttribute("membershipTier", user.getMembershipTier());
+
+                // D2: Tự động merge giỏ hàng vãng lai (Guest) vào tài khoản khi đăng nhập
+                cartService.mergeGuestCartToUser(session.getId(), user);
             }
 
             boolean isAdminOrStaff = authentication.getAuthorities().stream()
@@ -159,25 +160,63 @@ public class SecurityConfig {
         };
     }
 
+    /**
+     * B6: Phân quyền bảo mật chặt chẽ giữa ADMIN và STAFF
+     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, 
                                            DaoAuthenticationProvider authenticationProvider,
                                            SecurityContextRepository securityContextRepository,
                                            AuthenticationSuccessHandler customSuccessHandler) throws Exception {
         http
-            .csrf(csrf -> csrf.disable())
+            .csrf(csrf -> csrf.disable()) // API & Sandbox compatibility
             .authenticationProvider(authenticationProvider)
             .securityContext(sc -> sc.securityContextRepository(securityContextRepository))
             .exceptionHandling(ex -> ex.authenticationEntryPoint(customAuthenticationEntryPoint()))
             .authorizeHttpRequests(auth -> auth
+                // Công khai hoàn toàn (Guest Commerce)
                 .requestMatchers(
-                    "/", "/index", "/san-pham/**", "/danh-muc/**", "/tim-kiem/**",
+                    "/", "/index", "/san-pham/**", "/danh-muc/**", "/bo-suu-tap/**", "/tim-kiem/**",
+                    "/coolclub/**", "/hoi-vien/**",
                     "/chinh-sach-doi-tra/**", "/doi-tra/chinh-sach/**",
+                    "/tra-cuu-don-hang/**",
+                    "/api/size-advisor/**",
+                    "/thanh-toan/vnpay-return/**", "/thanh-toan/vnpay-ipn/**",
+                    "/gio-hang/**", "/cart/**", "/api/cart/**",
                     "/auth/**", "/login", "/register",
-                    "/api/**", "/coolclub/**", "/hoi-vien/**",
                     "/css/**", "/js/**", "/images/**", "/webjars/**", "/favicon.ico"
                 ).permitAll()
-                .requestMatchers("/admin/**").hasAnyRole("ADMIN", "STAFF")
+
+                // Phân quyền ADMIN ONLY: Báo cáo tài chính, quản lý khách hàng & ví, khuyến mãi, duyệt nhập kho
+                .requestMatchers(
+                    "/admin/dashboard/**",
+                    "/admin/khach-hang/**",
+                    "/admin/khuyen-mai/**",
+                    "/admin/danh-muc/**",
+                    "/admin/nhap-kho/*/duyet",
+                    "/admin/nhap-kho/*/tu-choi"
+                ).hasRole("ADMIN")
+
+                // Phân quyền STAFF & ADMIN: Đơn hàng, vận chuyển, tạo phiếu nhập kho, đổi trả, duyệt đánh giá
+                .requestMatchers(
+                    "/admin",
+                    "/admin/don-hang/**",
+                    "/admin/san-pham/**",
+                    "/admin/nhap-kho/**",
+                    "/admin/doi-tra/**",
+                    "/admin/danh-gia/**"
+                ).hasAnyRole("ADMIN", "STAFF")
+
+                // Các trang nghiệp vụ thành viên
+                .requestMatchers(
+                    "/thong-tin-tai-khoan/**", "/profile/**", "/tai-khoan/**",
+                    "/vi-coolcash/**",
+                    "/don-hang/**",
+                    "/doi-tra/yeu-cau/**",
+                    "/danh-gia/gui/**",
+                    "/wishlist/**"
+                ).authenticated()
+
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form

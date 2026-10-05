@@ -46,6 +46,7 @@
             </div>
         </div>
 
+        <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert"><i class="bi bi-exclamation-triangle-fill me-2"></i><span th:text="${errorMessage}"></span><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
         <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
             <i class="bi bi-check-circle-fill me-2"></i><span th:text="${successMessage}"></span>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
@@ -93,18 +94,18 @@
                                 <strong th:text="${#numbers.formatDecimal(r.refundAmount != null ? r.refundAmount : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</strong>
                             </td>
                             <td>
-                                <span class="badge bg-warning text-dark" th:if="${r.status == 'PENDING'}">Chờ duyệt</span>
+                                <span class="badge bg-warning text-dark" th:if="${r.status == 'PENDING' or r.status == 'REQUESTED'}">Chờ duyệt</span>
                                 <span class="badge bg-success" th:if="${r.status == 'COMPLETED'}">Đã giải quyết</span>
                                 <span class="badge bg-danger" th:if="${r.status == 'REJECTED'}">Từ chối</span>
                             </td>
                             <td>
-                                <form th:if="${r.status == 'PENDING'}" th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
+                                <form th:if="${r.status == 'PENDING' or r.status == 'REQUESTED'}" th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
                                     <input type="hidden" name="status" value="COMPLETED">
                                     <button type="submit" class="btn btn-sm btn-success rounded-pill px-3" title="Chấp thuận & Hoàn tất">
                                         <i class="bi bi-check-lg me-1"></i>Chấp thuận
                                     </button>
                                 </form>
-                                <form th:if="${r.status == 'PENDING'}" th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline ms-1">
+                                <form th:if="${r.status == 'PENDING' or r.status == 'REQUESTED'}" th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline ms-1">
                                     <input type="hidden" name="status" value="REJECTED">
                                     <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Từ chối">
                                         <i class="bi bi-x-lg"></i>

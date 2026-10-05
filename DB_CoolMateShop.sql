@@ -1094,3 +1094,276 @@ USE [master]
 GO
 ALTER DATABASE [CoolMate_DB] SET READ_WRITE 
 GO
+
+
+-- ==========================================
+-- D2C EXTENSION & MIGRATIONS
+-- ==========================================
+-- ===================================================================
+-- COOLMATESHOP - D2C SYSTEM DATABASE MIGRATION SCRIPT
+-- SQL Server 2016+ Compatible - Idempotent Execution
+-- ===================================================================
+
+USE [CoolMate_DB];
+GO
+
+-- 1. Order_Items: cost_price_snapshot for historical COGS calculation
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Order_Items]') AND name = 'cost_price_snapshot')
+BEGIN
+    ALTER TABLE [dbo].[Order_Items] ADD [cost_price_snapshot] [decimal](18, 2) NULL;
+    PRINT 'Added cost_price_snapshot to Order_Items';
+END
+GO
+
+-- 2. Orders: VNPAY transaction reference, cancellation and payment tracking
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Orders]') AND name = 'vnpay_txn_ref')
+BEGIN
+    ALTER TABLE [dbo].[Orders] ADD [vnpay_txn_ref] [varchar](100) NULL;
+    PRINT 'Added vnpay_txn_ref to Orders';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Orders]') AND name = 'payment_paid_at')
+BEGIN
+    ALTER TABLE [dbo].[Orders] ADD [payment_paid_at] [datetime2](7) NULL;
+    PRINT 'Added payment_paid_at to Orders';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Orders]') AND name = 'cancelled_at')
+BEGIN
+    ALTER TABLE [dbo].[Orders] ADD [cancelled_at] [datetime2](7) NULL;
+    PRINT 'Added cancelled_at to Orders';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Orders]') AND name = 'cancelled_reason')
+BEGIN
+    ALTER TABLE [dbo].[Orders] ADD [cancelled_reason] [nvarchar](500) NULL;
+    PRINT 'Added cancelled_reason to Orders';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Orders]') AND name = 'payment_response_code')
+BEGIN
+    ALTER TABLE [dbo].[Orders] ADD [payment_response_code] [varchar](50) NULL;
+    PRINT 'Added payment_response_code to Orders';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Orders]') AND name = 'payment_bank_code')
+BEGIN
+    ALTER TABLE [dbo].[Orders] ADD [payment_bank_code] [varchar](50) NULL;
+    PRINT 'Added payment_bank_code to Orders';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Orders]') AND name = 'payment_failure_reason')
+BEGIN
+    ALTER TABLE [dbo].[Orders] ADD [payment_failure_reason] [nvarchar](500) NULL;
+    PRINT 'Added payment_failure_reason to Orders';
+END
+GO
+
+-- 3. Inventory_Receipts: approval workflow and audit
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Inventory_Receipts]') AND name = 'approved_by')
+BEGIN
+    ALTER TABLE [dbo].[Inventory_Receipts] ADD [approved_by] [bigint] NULL;
+    ALTER TABLE [dbo].[Inventory_Receipts] WITH CHECK ADD CONSTRAINT [FK_Receipt_ApprovedBy] FOREIGN KEY([approved_by]) REFERENCES [dbo].[Users] ([id]);
+    PRINT 'Added approved_by to Inventory_Receipts';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Inventory_Receipts]') AND name = 'approved_at')
+BEGIN
+    ALTER TABLE [dbo].[Inventory_Receipts] ADD [approved_at] [datetime2](7) NULL;
+    PRINT 'Added approved_at to Inventory_Receipts';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Inventory_Receipts]') AND name = 'rejected_reason')
+BEGIN
+    ALTER TABLE [dbo].[Inventory_Receipts] ADD [rejected_reason] [nvarchar](500) NULL;
+    PRINT 'Added rejected_reason to Inventory_Receipts';
+END
+GO
+
+-- 4. Order_Returns: refund tracking and processing
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Order_Returns]') AND name = 'processed_at')
+BEGIN
+    ALTER TABLE [dbo].[Order_Returns] ADD [processed_at] [datetime2](7) NULL;
+    PRINT 'Added processed_at to Order_Returns';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Order_Returns]') AND name = 'refund_method')
+BEGIN
+    ALTER TABLE [dbo].[Order_Returns] ADD [refund_method] [varchar](50) NULL;
+    PRINT 'Added refund_method to Order_Returns';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Order_Returns]') AND name = 'refund_reference')
+BEGIN
+    ALTER TABLE [dbo].[Order_Returns] ADD [refund_reference] [varchar](100) NULL;
+    PRINT 'Added refund_reference to Order_Returns';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Order_Returns]') AND name = 'refund_status')
+BEGIN
+    ALTER TABLE [dbo].[Order_Returns] ADD [refund_status] [varchar](50) NULL;
+    PRINT 'Added refund_status to Order_Returns';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Order_Returns]') AND name = 'rejection_reason')
+BEGIN
+    ALTER TABLE [dbo].[Order_Returns] ADD [rejection_reason] [nvarchar](500) NULL;
+    PRINT 'Added rejection_reason to Order_Returns';
+END
+GO
+
+-- 5. Reviews: admin response and status
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Reviews]') AND name = 'status')
+BEGIN
+    ALTER TABLE [dbo].[Reviews] ADD [status] [varchar](30) NOT NULL CONSTRAINT DF_Reviews_Status DEFAULT 'PENDING';
+    PRINT 'Added status to Reviews';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Reviews]') AND name = 'admin_reply')
+BEGIN
+    ALTER TABLE [dbo].[Reviews] ADD [admin_reply] [nvarchar](1000) NULL;
+    PRINT 'Added admin_reply to Reviews';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Reviews]') AND name = 'admin_replied_at')
+BEGIN
+    ALTER TABLE [dbo].[Reviews] ADD [admin_replied_at] [datetime2](7) NULL;
+    PRINT 'Added admin_replied_at to Reviews';
+END
+GO
+
+-- 6. Table: Inventory_Movements
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Inventory_Movements]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE [dbo].[Inventory_Movements](
+        [id] [bigint] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [variant_id] [bigint] NOT NULL,
+        [movement_type] [varchar](30) NOT NULL, -- IMPORT, ORDER_RESERVE, ORDER_CONSUME, ORDER_RELEASE, RETURN_RESTOCK, MANUAL_ADJUST
+        [quantity] [int] NOT NULL,
+        [balance_before] [int] NOT NULL,
+        [balance_after] [int] NOT NULL,
+        [reference_type] [varchar](30) NULL, -- INVENTORY_RECEIPT, ORDER, ORDER_RETURN, MANUAL
+        [reference_id] [bigint] NULL,
+        [note] [nvarchar](500) NULL,
+        [created_at] [datetime2](7) NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT [FK_InvMovement_Variant] FOREIGN KEY([variant_id]) REFERENCES [dbo].[Product_Variants] ([id])
+    );
+    PRINT 'Created Table Inventory_Movements';
+END
+GO
+
+-- 7. Table: Promotion_Usages (per-user & per-order usage tracking)
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Promotion_Usages]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE [dbo].[Promotion_Usages](
+        [id] [bigint] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [promotion_id] [bigint] NOT NULL,
+        [user_id] [bigint] NULL,
+        [order_id] [bigint] NOT NULL,
+        [used_at] [datetime2](7) NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT [FK_PromoUsage_Promotion] FOREIGN KEY([promotion_id]) REFERENCES [dbo].[Promotions] ([id]),
+        CONSTRAINT [FK_PromoUsage_Order] FOREIGN KEY([order_id]) REFERENCES [dbo].[Orders] ([id])
+    );
+    PRINT 'Created Table Promotion_Usages';
+END
+GO
+
+-- 8. Table: Wishlists & Wishlist_Items
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Wishlists]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE [dbo].[Wishlists](
+        [id] [bigint] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [user_id] [bigint] NOT NULL UNIQUE,
+        [created_at] [datetime2](7) NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT [FK_Wishlists_User] FOREIGN KEY([user_id]) REFERENCES [dbo].[Users] ([id]) ON DELETE CASCADE
+    );
+    PRINT 'Created Table Wishlists';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Wishlist_Items]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE [dbo].[Wishlist_Items](
+        [id] [bigint] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [wishlist_id] [bigint] NOT NULL,
+        [product_id] [bigint] NOT NULL,
+        [created_at] [datetime2](7) NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT [FK_WishlistItems_Wishlist] FOREIGN KEY([wishlist_id]) REFERENCES [dbo].[Wishlists] ([id]) ON DELETE CASCADE,
+        CONSTRAINT [FK_WishlistItems_Product] FOREIGN KEY([product_id]) REFERENCES [dbo].[Products] ([id])
+    );
+    PRINT 'Created Table Wishlist_Items';
+END
+GO
+
+-- 9. Table: Password_Reset_Tokens
+IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Password_Reset_Tokens]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE [dbo].[Password_Reset_Tokens](
+        [id] [bigint] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [user_id] [bigint] NOT NULL,
+        [token] [varchar](100) NOT NULL UNIQUE,
+        [expires_at] [datetime2](7) NOT NULL,
+        [used] [bit] NOT NULL DEFAULT 0,
+        [created_at] [datetime2](7) NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT [FK_PwdReset_User] FOREIGN KEY([user_id]) REFERENCES [dbo].[Users] ([id]) ON DELETE CASCADE
+    );
+    PRINT 'Created Table Password_Reset_Tokens';
+END
+GO
+
+-- 10. Fix Carts table unique constraints for Guest sessions (Filtered Unique Indexes)
+-- Drop existing non-filtered unique constraint on Carts.user_id if present
+DECLARE @constraintName NVARCHAR(200);
+SELECT @constraintName = name FROM sys.key_constraints 
+WHERE parent_object_id = OBJECT_ID(N'[dbo].[Carts]') AND type = 'UQ';
+
+IF @constraintName IS NOT NULL
+BEGIN
+    EXEC('ALTER TABLE [dbo].[Carts] DROP CONSTRAINT [' + @constraintName + ']');
+    PRINT 'Dropped legacy unique constraint ' + @constraintName + ' on Carts';
+END
+GO
+
+-- Create Filtered Unique Indexes so multiple guest carts with user_id NULL can coexist safely
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_Carts_UserId_Filtered' AND object_id = OBJECT_ID(N'[dbo].[Carts]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [UQ_Carts_UserId_Filtered] ON [dbo].[Carts]([user_id]) 
+    WHERE [user_id] IS NOT NULL;
+    PRINT 'Created filtered unique index UQ_Carts_UserId_Filtered';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_Carts_SessionId_Filtered' AND object_id = OBJECT_ID(N'[dbo].[Carts]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [UQ_Carts_SessionId_Filtered] ON [dbo].[Carts]([session_id]) 
+    WHERE [session_id] IS NOT NULL;
+    PRINT 'Created filtered unique index UQ_Carts_SessionId_Filtered';
+END
+GO
+
+-- 11. Backfill cost_price_snapshot on existing Order_Items if empty
+UPDATE oi
+SET oi.cost_price_snapshot = pv.import_price
+FROM [dbo].[Order_Items] oi
+INNER JOIN [dbo].[Product_Variants] pv ON oi.variant_id = pv.id
+WHERE oi.cost_price_snapshot IS NULL;
+PRINT 'Backfilled historical cost_price_snapshot on existing order items';
+GO
+
+PRINT '=========================================================';
+PRINT 'MIGRATION COMPLETED SUCCESSFULLY FOR COOLMATE D2C ENGINE';
+PRINT '=========================================================';

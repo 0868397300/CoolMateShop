@@ -55,7 +55,13 @@ public class Review {
     private String adminReply;
 
     @Column(name = "is_approved", nullable = false)
-    private Boolean isApproved = true;
+    private Boolean isApproved = false;
+    @Column(name = "status", length = 30)
+    private String status = "PENDING"; // PENDING, APPROVED, HIDDEN
+
+    @Column(name = "admin_replied_at")
+    private LocalDateTime adminRepliedAt;
+
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -183,4 +189,11 @@ public class Review {
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+
+    public LocalDateTime getAdminRepliedAt() { return adminRepliedAt; }
+    public void setAdminRepliedAt(LocalDateTime adminRepliedAt) { this.adminRepliedAt = adminRepliedAt; }
+
 }
