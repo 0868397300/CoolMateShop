@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Khuyến Mãi & Combo - Coolmate Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f1f5f9; color: #0f172a; }
+        .sidebar { width: 260px; min-height: 100vh; background: #0f172a; color: #fff; position: fixed; }
+        .sidebar a { color: #94a3b8; text-decoration: none; display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-radius: 8px; font-weight: 500; }
+        .sidebar a:hover, .sidebar a.active { color: #fff; background: #1e293b; }
+        .main-wrapper { margin-left: 260px; padding: 30px; }
+        .card-custom { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; }
+    </style>
+</head>
+<body>
+    <div class="d-flex">
+        <!-- Sidebar -->
+        <div class="sidebar p-3">
+            <h4 class="fw-bold px-3 py-2 text-white mb-4">COOLMATE<span class="text-primary">.</span> <span class="badge bg-primary fs-6">ADMIN</span></h4>
+            <div class="d-flex flex-column gap-1">
+                <a th:href="@{/admin/dashboard}"><i class="bi bi-speedometer2"></i> Tổng quan tài chính</a>
+                <a th:href="@{/admin/don-hang}"><i class="bi bi-receipt"></i> Quản lý đơn hàng</a>
+                <a th:href="@{/admin/san-pham}"><i class="bi bi-box-seam"></i> Quản lý sản phẩm</a>
+                <a th:href="@{/admin/danh-muc}"><i class="bi bi-tags"></i> Danh mục &amp; BST</a>
+                <a th:href="@{/admin/nhap-kho}"><i class="bi bi-box-arrow-in-down"></i> Quản lý nhập kho</a>
+                <a th:href="@{/admin/doi-tra}"><i class="bi bi-arrow-repeat"></i> Đổi trả 60 ngày</a>
+                <a th:href="@{/admin/khach-hang}"><i class="bi bi-people"></i> Hội viên &amp; Khách hàng</a>
+                <a th:href="@{/admin/khuyen-mai}" class="active"><i class="bi bi-ticket-perforated"></i> Khuyến mãi &amp; Combo</a>
+                <a th:href="@{/admin/danh-gia}"><i class="bi bi-star"></i> Đánh giá &amp; Fit Size</a>
+                <a th:href="@{/}" target="_blank" class="mt-4 text-warning"><i class="bi bi-shop"></i> Xem Website</a>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-wrapper flex-grow-1">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h3 class="fw-bold mb-1">Quản Lý Mã Giảm Giá & Combo Mix &amp; Match</h3>
+                    <p class="text-muted small mb-0">Thiết lập chính sách voucher chiết khấu đơn hàng và quy tắc khuyến mãi tự động khi mua nhiều sản phẩm.</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary rounded-pill px-3 fw-bold" data-bs-toggle="modal" data-bs-target="#createComboModal">
+                        <i class="bi bi-layers me-1"></i>Thêm Combo Mới
+                    </button>
+                    <button class="btn btn-primary rounded-pill px-4 fw-bold" data-bs-toggle="modal" data-bs-target="#createPromoModal">
+                        <i class="bi bi-plus-lg me-1"></i>Tạo Mã Voucher
+                    </button>
+                </div>
+            </div>
+
+            <!-- Nav Tabs -->
+            <ul class="nav nav-pills mb-4 gap-2" id="promoTab" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active rounded-pill px-4 fw-bold" id="vouchers-tab" data-bs-toggle="pill" data-bs-target="#vouchers-pane" type="button">
+                        <i class="bi bi-ticket-perforated me-1"></i>Mã Voucher Khuyến Mãi
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link rounded-pill px-4 fw-bold" id="combos-tab" data-bs-toggle="pill" data-bs-target="#combos-pane" type="button">
+                        <i class="bi bi-layers-half me-1"></i>Quy Tắc Combo Mix & Match
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="promoTabContent">
+                <!-- Tab 1: Vouchers -->
+                <div class="tab-pane fade show active" id="vouchers-pane" role="tabpanel">
+                    <!-- Filter bar -->
+                    <div class="card-custom p-3 mb-4">
+                        <form th:action="@{/admin/khuyen-mai}" method="get" class="row g-2 align-items-center">
+                            <div class="col-md-5">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
+                                    <input type="text" name="keyword" class="form-control border-start-0" placeholder="Tìm theo Mã code hoặc Tên chương trình..." th:value="${keyword}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <select name="type" class="form-select">
+                                    <option value="">-- Loại giảm giá --</option>
+                                    <option value="PERCENTAGE" th:selected="${selectedType == 'PERCENTAGE'}">Giảm theo %</option>
+                                    <option value="FIXED_AMOUNT" th:selected="${selectedType == 'FIXED_AMOUNT'}">Giảm số tiền cố định</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select name="status" class="form-select">
+                                    <option value="">-- Trạng thái --</option>
+                                    <option value="ACTIVE" th:selected="${selectedStatus == 'ACTIVE'}">Đang kích hoạt</option>
+                                    <option value="INACTIVE" th:selected="${selectedStatus == 'INACTIVE'}">Tạm ngưng</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2 d-flex gap-2">
+                                <button type="submit" class="btn btn-primary w-100 rounded-pill"><i class="bi bi-funnel me-1"></i>Lọc</button>
+                                <a th:href="@{/admin/khuyen-mai}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-counterclockwise"></i></a>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Voucher Table -->
+                    <div class="card-custom overflow-hidden">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light small text-uppercase">
+                                    <tr>
+                                        <th class="ps-3">Mã Voucher</th>
+                                        <th>Tên Chương Trình</th>
+                                        <th>Loại &amp; Mức Giảm</th>
+                                        <th>Đơn Tối Thiểu</th>
+                                        <th>Đã Dùng / Giới Hạn</th>
+                                        <th>Trạng Thái</th>
+                                        <th class="text-end pe-3">Thao Tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:if="${promotions == null or promotions.isEmpty()}">
+                                        <td colspan="7" class="text-center py-4 text-muted">Không tìm thấy mã khuyến mãi nào.</td>
+                                    </tr>
+                                    <tr th:each="p : ${promotions}">
+                                        <td class="ps-3">
+                                            <span class="badge bg-primary fs-6 px-3 py-2 fw-bold" th:text="${p.code}">COOLNEW50</span>
+                                        </td>
+                                        <td>
+                                            <strong class="d-block text-dark" th:text="${p.name}">Tên chương trình</strong>
+                                            <small class="text-muted" th:text="'HSD: ' + ${p.endDate}">2026-12-31</small>
+                                        </td>
+                                        <td>
+                                            <span th:if="${p.discountType == 'PERCENTAGE'}" class="text-success fw-bold">
+                                                Giảm <span th:text="${p.discountValue}">10</span>%
+                                                <small class="text-muted d-block" th:if="${p.maxDiscountAmount != null}" th:text="'(Tối đa: ' + ${#numbers.formatDecimal((p.maxDiscountAmount != null ? p.maxDiscountAmount : 0), 0, 'COMMA', 0, 'POINT')} + 'đ)'"></small>
+                                            </span>
+                                            <span th:unless="${p.discountType == 'PERCENTAGE'}" class="text-primary fw-bold">
+                                                Giảm <span th:text="${#numbers.formatDecimal(p.discountValue != null ? p.discountValue : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">50.000đ</span>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span th:text="${#numbers.formatDecimal(p.minOrderValue != null ? p.minOrderValue : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">0đ</span>
+                                        </td>
+                                        <td>
+                                            <span class="fw-bold" th:text="${p.usedCount}">12</span> / <span th:text="${p.usageLimit}">1000</span>
+                                        </td>
+                                        <td>
+                                            <span th:if="${p.isActive}" class="badge bg-success bg-opacity-25 text-success border border-success">Đang chạy</span>
+                                            <span th:unless="${p.isActive}" class="badge bg-secondary bg-opacity-25 text-secondary border">Tạm dừng</span>
+                                        </td>
+                                        <td class="text-end pe-3">
+                                            <div class="btn-group btn-group-sm">
+                                                <form th:action="@{'/admin/khuyen-mai/' + ${p.id} + '/trang-thai'}" method="post" class="d-inline">
+                                                    <button type="submit" class="btn btn-outline-secondary" th:title="${p.isActive ? 'Tạm dừng' : 'Kích hoạt'}">
+                                                        <i class="bi" th:classappend="${p.isActive ? 'bi-pause-circle' : 'bi-play-circle'}"></i>
+                                                    </button>
+                                                </form>
+                                                <form th:action="@{'/admin/khuyen-mai/' + ${p.id} + '/xoa'}" method="post" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn xóa mã voucher này?');">
+                                                    <button type="submit" class="btn btn-outline-danger" title="Xóa voucher"><i class="bi bi-trash"></i></button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Combo Rules -->
+                <div class="tab-pane fade" id="combos-pane" role="tabpanel">
+                    <div class="card-custom overflow-hidden">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light small text-uppercase">
+                                    <tr>
+                                        <th class="ps-3">ID</th>
+                                        <th>Tên Quy Tắc Combo</th>
+                                        <th>Ngành Hàng Áp Dụng</th>
+                                        <th>Số Lượng Tối Thiểu</th>
+                                        <th>Chiết Khấu Thêm (%)</th>
+                                        <th>Trạng Thái</th>
+                                        <th class="text-end pe-3">Thao Tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:if="${comboRules == null or comboRules.isEmpty()}">
+                                        <td colspan="7" class="text-center py-4 text-muted">Chưa có quy tắc combo nào.</td>
+                                    </tr>
+                                    <tr th:each="r : ${comboRules}">
+                                        <td class="ps-3 fw-bold text-muted" th:text="${r.id}">1</td>
+                                        <td><strong class="text-dark" th:text="${r.name}">Combo Áo Thun</strong></td>
+                                        <td>
+                                            <span class="badge bg-light text-dark border" th:text="${r.category != null ? r.category.name : 'Tất cả'}">Áo Thun</span>
+                                        </td>
+                                        <td>
+                                            Từ <strong class="text-primary" th:text="${r.minQuantity}">3</strong> sản phẩm trở lên
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-danger fs-6 px-3 py-1">Giảm -<span th:text="${r.discountPercentage}">10</span>%</span>
+                                        </td>
+                                        <td>
+                                            <span th:if="${r.isActive}" class="badge bg-success bg-opacity-25 text-success border border-success">Hoạt động</span>
+                                            <span th:unless="${r.isActive}" class="badge bg-secondary bg-opacity-25 text-secondary border">Tắt</span>
+                                        </td>
+                                        <td class="text-end pe-3">
+                                            <div class="btn-group btn-group-sm">
+                                                <form th:action="@{'/admin/khuyen-mai/combo/' + ${r.id} + '/trang-thai'}" method="post" class="d-inline">
+                                                    <button type="submit" class="btn btn-outline-secondary" th:title="${r.isActive ? 'Tạm dừng' : 'Kích hoạt'}">
+                                                        <i class="bi" th:classappend="${r.isActive ? 'bi-pause-circle' : 'bi-play-circle'}"></i>
+                                                    </button>
+                                                </form>
+                                                <form th:action="@{'/admin/khuyen-mai/combo/' + ${r.id} + '/xoa'}" method="post" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn xóa combo này?');">
+                                                    <button type="submit" class="btn btn-outline-danger" title="Xóa combo"><i class="bi bi-trash"></i></button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Create Voucher -->
+    <div class="modal fade" id="createPromoModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form th:action="@{/admin/khuyen-mai/tao-moi}" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold"><i class="bi bi-ticket-perforated text-primary me-2"></i>Tạo Mã Voucher Mới</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Mã Code Voucher (Viết hoa liền không dấu) <span class="text-danger">*</span></label>
+                            <input type="text" name="code" class="form-control text-uppercase fw-bold" placeholder="VD: COOLVIP20" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Tên chương trình khuyến mãi <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" placeholder="VD: Giảm 20% chào hè 2026" required>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">Loại giảm giá</label>
+                                <select name="discountType" class="form-select">
+                                    <option value="PERCENTAGE">Theo phần trăm (%)</option>
+                                    <option value="FIXED_AMOUNT">Số tiền cố định (VNĐ)</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">Giá trị giảm <span class="text-danger">*</span></label>
+                                <input type="number" name="discountValue" class="form-control" placeholder="VD: 10 hoặc 50000" min="1" required>
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">Giảm tối đa (VNĐ)</label>
+                                <input type="number" name="maxDiscountAmount" class="form-control" placeholder="Để trống nếu không giới hạn">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">Đơn tối thiểu (VNĐ)</label>
+                                <input type="number" name="minOrderValue" class="form-control" placeholder="VD: 299000" value="0">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Lượt sử dụng tối đa</label>
+                            <input type="number" name="usageLimit" class="form-control" value="500" min="1">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-primary btn-sm rounded-pill px-4 fw-bold">Tạo Voucher</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Create Combo -->
+    <div class="modal fade" id="createComboModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form th:action="@{/admin/khuyen-mai/combo/tao-moi}" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold"><i class="bi bi-layers text-primary me-2"></i>Tạo Quy Tắc Combo Mới</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Tên quy tắc combo <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" placeholder="VD: Mua từ 3 Áo Thun giảm 15%" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Danh mục áp dụng <span class="text-danger">*</span></label>
+                            <select name="categoryId" class="form-select" required>
+                                <option th:each="c : ${categories}" th:value="${c.id}" th:text="${c.name}">Áo Thun Nam</option>
+                            </select>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">Số lượng tối thiểu <span class="text-danger">*</span></label>
+                                <input type="number" name="minQuantity" class="form-control" value="2" min="2" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold">% Chiết khấu thêm <span class="text-danger">*</span></label>
+                                <input type="number" name="discountPercentage" class="form-control" value="10" min="1" max="90" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-primary btn-sm rounded-pill px-4 fw-bold">Tạo Quy Tắc</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script th:if="${successMessage}">
+        Swal.fire({ icon: 'success', title: 'Thành công!', text: '[[${successMessage}]]', confirmButtonColor: '#2f5acf', timer: 2500 });
+    </script>
+    <script th:if="${errorMessage}">
+        Swal.fire({ icon: 'error', title: 'Lỗi', text: '[[${errorMessage}]]', confirmButtonColor: '#2f5acf' });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

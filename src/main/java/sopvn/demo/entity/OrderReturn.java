@@ -1,36 +1,17 @@
 package sopvn.demo.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "order_returns")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Table(name = "Order_Returns")
 public class OrderReturn {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -41,7 +22,11 @@ public class OrderReturn {
     @JoinColumn(name = "order_item_id", nullable = false)
     private OrderItem orderItem;
 
-    @Column(name = "return_type", length = 50)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @Column(name = "return_type", length = 30, nullable = false)
     private String returnType;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -51,19 +36,118 @@ public class OrderReturn {
     @Column(name = "quantity", nullable = false)
     private Integer quantity;
 
-    @Column(name = "reason", columnDefinition = "NVARCHAR(500)")
+    @Column(name = "reason", length = 500, nullable = false)
     private String reason;
 
-    @Column(name = "evidence_images", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "evidence_images", length = 1000)
     private String evidenceImages;
 
-    @Column(name = "status", length = 50)
-    private String status;
+    @Column(name = "status", length = 30, nullable = false)
+    private String status = "REQUESTED";
 
-    @Column(name = "refund_amount", precision = 18, scale = 2)
-    private BigDecimal refundAmount;
+    @Column(name = "refund_amount", precision = 18, scale = 2, nullable = false)
+    private BigDecimal refundAmount = BigDecimal.ZERO;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    public OrderReturn() {
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Order getOrder() {
+        return order;
+    }
+
+    public void setOrder(Order order) {
+        this.order = order;
+    }
+
+    public OrderItem getOrderItem() {
+        return orderItem;
+    }
+
+    public void setOrderItem(OrderItem orderItem) {
+        this.orderItem = orderItem;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+
+    public String getReturnType() {
+        return returnType;
+    }
+
+    public void setReturnType(String returnType) {
+        this.returnType = returnType;
+    }
+
+    public ProductVariant getTargetVariant() {
+        return targetVariant;
+    }
+
+    public void setTargetVariant(ProductVariant targetVariant) {
+        this.targetVariant = targetVariant;
+    }
+
+    public Integer getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(Integer quantity) {
+        this.quantity = quantity;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public void setReason(String reason) {
+        this.reason = reason;
+    }
+
+    public String getEvidenceImages() {
+        return evidenceImages;
+    }
+
+    public void setEvidenceImages(String evidenceImages) {
+        this.evidenceImages = evidenceImages;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public BigDecimal getRefundAmount() {
+        return refundAmount;
+    }
+
+    public void setRefundAmount(BigDecimal refundAmount) {
+        this.refundAmount = refundAmount;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
 }

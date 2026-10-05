@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đánh Giá & Fit Size - Coolmate Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f1f5f9; color: #0f172a; }
+        .sidebar { width: 260px; min-height: 100vh; background: #0f172a; color: #fff; position: fixed; }
+        .sidebar a { color: #94a3b8; text-decoration: none; display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-radius: 8px; font-weight: 500; }
+        .sidebar a:hover, .sidebar a.active { color: #fff; background: #1e293b; }
+        .main-wrapper { margin-left: 260px; padding: 30px; }
+        .card-custom { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; }
+    </style>
+</head>
+<body>
+    <div class="d-flex">
+        <!-- Sidebar -->
+        <div class="sidebar p-3">
+            <h4 class="fw-bold px-3 py-2 text-white mb-4">COOLMATE<span class="text-primary">.</span> <span class="badge bg-primary fs-6">ADMIN</span></h4>
+            <div class="d-flex flex-column gap-1">
+                <a th:href="@{/admin/dashboard}"><i class="bi bi-speedometer2"></i> Tổng quan tài chính</a>
+                <a th:href="@{/admin/don-hang}"><i class="bi bi-receipt"></i> Quản lý đơn hàng</a>
+                <a th:href="@{/admin/san-pham}"><i class="bi bi-box-seam"></i> Quản lý sản phẩm</a>
+                <a th:href="@{/admin/danh-muc}"><i class="bi bi-tags"></i> Danh mục &amp; BST</a>
+                <a th:href="@{/admin/nhap-kho}"><i class="bi bi-box-arrow-in-down"></i> Quản lý nhập kho</a>
+                <a th:href="@{/admin/doi-tra}"><i class="bi bi-arrow-repeat"></i> Đổi trả 60 ngày</a>
+                <a th:href="@{/admin/khach-hang}"><i class="bi bi-people"></i> Hội viên &amp; Khách hàng</a>
+                <a th:href="@{/admin/khuyen-mai}"><i class="bi bi-ticket-perforated"></i> Khuyến mãi &amp; Combo</a>
+                <a th:href="@{/admin/danh-gia}" class="active"><i class="bi bi-star"></i> Đánh giá &amp; Fit Size</a>
+                <a th:href="@{/}" target="_blank" class="mt-4 text-warning"><i class="bi bi-shop"></i> Xem Website</a>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-wrapper flex-grow-1">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h3 class="fw-bold mb-1">Kiểm Duyệt Đánh Giá &amp; Khảo Sát Fit Size</h3>
+                    <p class="text-muted small mb-0">Theo dõi phản hồi thực tế của khách hàng về độ vừa vặn trang phục và phản hồi trực tiếp từ CSKH.</p>
+                </div>
+            </div>
+
+            <!-- Filter Bar -->
+            <div class="card-custom p-3 mb-4">
+                <form th:action="@{/admin/danh-gia}" method="get" class="row g-2 align-items-center">
+                    <div class="col-md-4">
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
+                            <input type="text" name="keyword" class="form-control border-start-0" placeholder="Tìm theo tên sản phẩm, bình luận, khách hàng..." th:value="${keyword}">
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="rating" class="form-select">
+                            <option value="">-- Tất cả số sao --</option>
+                            <option value="5" th:selected="${selectedRating == 5}">5 Sao (Xuất sắc)</option>
+                            <option value="4" th:selected="${selectedRating == 4}">4 Sao (Tốt)</option>
+                            <option value="3" th:selected="${selectedRating == 3}">3 Sao (Bình thường)</option>
+                            <option value="2" th:selected="${selectedRating == 2}">2 Sao (Kém)</option>
+                            <option value="1" th:selected="${selectedRating == 1}">1 Sao (Rất tệ)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="fit" class="form-select">
+                            <option value="">-- Đánh giá Form dáng --</option>
+                            <option value="TRUE_TO_SIZE" th:selected="${selectedFit == 'TRUE_TO_SIZE'}">Vừa vặn (True to size)</option>
+                            <option value="SMALL" th:selected="${selectedFit == 'SMALL'}">Hơi chật (Small)</option>
+                            <option value="LARGE" th:selected="${selectedFit == 'LARGE'}">Hơi rộng (Large)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="status" class="form-select">
+                            <option value="">-- Trạng thái duyệt --</option>
+                            <option value="APPROVED" th:selected="${selectedStatus == 'APPROVED'}">Đã hiển thị</option>
+                            <option value="PENDING" th:selected="${selectedStatus == 'PENDING'}">Chưa duyệt / Tạm ẩn</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary w-100 rounded-pill"><i class="bi bi-funnel me-1"></i>Lọc</button>
+                        <a th:href="@{/admin/danh-gia}" class="btn btn-outline-secondary rounded-pill"><i class="bi bi-arrow-counterclockwise"></i></a>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Review Cards / Table -->
+            <div class="card-custom overflow-hidden">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small text-uppercase">
+                            <tr>
+                                <th class="ps-3">Sản Phẩm</th>
+                                <th>Khách Hàng &amp; Chỉ Số Fit</th>
+                                <th>Đánh Giá &amp; Nhận Xét</th>
+                                <th>CSKH Phản Hồi</th>
+                                <th>Trạng Thái</th>
+                                <th class="text-end pe-3">Hành Động</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:if="${reviews == null or reviews.isEmpty()}">
+                                <td colspan="6" class="text-center py-4 text-muted">Không tìm thấy đánh giá nào.</td>
+                            </tr>
+                            <tr th:each="r : ${reviews}">
+                                <td class="ps-3" style="max-width: 200px;">
+                                    <strong class="d-block text-truncate" th:text="${r.product != null ? r.product.name : 'Sản phẩm Coolmate'}">Tên áo</strong>
+                                    <small class="text-muted" th:text="'Màu: ' + ${r.purchasedColor} + ' | Size: ' + ${r.purchasedSize}">Màu: Đen | Size: L</small>
+                                </td>
+                                <td>
+                                    <strong class="d-block text-dark" th:text="${r.user != null ? r.user.fullName : 'Khách hàng'}">Họ Tên</strong>
+                                    <small class="text-muted" th:if="${r.customerHeightCm != null and r.customerWeightKg != null}" 
+                                           th:text="'Body: ' + ${r.customerHeightCm} + 'cm - ' + ${r.customerWeightKg} + 'kg'"></small>
+                                    <div>
+                                        <span th:if="${r.fitFeedback == 'TRUE_TO_SIZE'}" class="badge bg-success bg-opacity-25 text-success">Vừa in</span>
+                                        <span th:if="${r.fitFeedback == 'SMALL'}" class="badge bg-warning bg-opacity-25 text-warning-emphasis">Hơi chật</span>
+                                        <span th:if="${r.fitFeedback == 'LARGE'}" class="badge bg-info bg-opacity-25 text-info">Hơi rộng</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="text-warning small mb-1">
+                                        <i class="bi bi-star-fill" th:each="i : ${#numbers.sequence(1, r.rating)}"></i>
+                                    </div>
+                                    <p class="mb-0 small text-dark fst-italic" th:text="'"' + ${r.comment} + '"'">Nội dung nhận xét</p>
+                                    <small class="text-muted d-block mt-1" th:text="${r.createdAt}">2026-09-21</small>
+                                </td>
+                                <td style="max-width: 220px;">
+                                    <div th:if="${r.adminReply != null and !r.adminReply.isBlank()}" class="p-2 rounded bg-light border small">
+                                        <strong class="text-primary d-block"><i class="bi bi-reply-fill me-1"></i>Coolmate CSKH:</strong>
+                                        <span th:text="${r.adminReply}">Cảm ơn bạn!</span>
+                                    </div>
+                                    <span th:unless="${r.adminReply != null and !r.adminReply.isBlank()}" class="text-muted small fst-italic">Chưa phản hồi</span>
+                                </td>
+                                <td>
+                                    <span th:if="${r.isApproved}" class="badge bg-success bg-opacity-25 text-success border border-success">Hiển thị</span>
+                                    <span th:unless="${r.isApproved}" class="badge bg-secondary bg-opacity-25 text-secondary border">Tạm ẩn</span>
+                                </td>
+                                <td class="text-end pe-3">
+                                    <div class="btn-group btn-group-sm">
+                                        <!-- Reply Modal Trigger -->
+                                        <button class="btn btn-outline-primary" data-bs-toggle="modal" th:data-bs-target="'#replyModal' + ${r.id}" title="Phản hồi đánh giá">
+                                            <i class="bi bi-chat-left-dots"></i>
+                                        </button>
+                                        <!-- Approve / Hide Form -->
+                                        <form th:if="${!r.isApproved}" th:action="@{'/admin/danh-gia/' + ${r.id} + '/duyet'}" method="post" class="d-inline">
+                                            <button type="submit" class="btn btn-outline-success" title="Phê duyệt hiển thị"><i class="bi bi-check-lg"></i></button>
+                                        </form>
+                                        <form th:if="${r.isApproved}" th:action="@{'/admin/danh-gia/' + ${r.id} + '/an'}" method="post" class="d-inline">
+                                            <button type="submit" class="btn btn-outline-warning" title="Tạm ẩn đánh giá"><i class="bi bi-eye-slash"></i></button>
+                                        </form>
+                                        <!-- Delete Form -->
+                                        <form th:action="@{'/admin/danh-gia/' + ${r.id} + '/xoa'}" method="post" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn xóa đánh giá này?');">
+                                            <button type="submit" class="btn btn-outline-danger" title="Xóa đánh giá"><i class="bi bi-trash"></i></button>
+                                        </form>
+                                    </div>
+
+                                    <!-- Reply Modal -->
+                                    <div class="modal fade" th:id="'replyModal' + ${r.id}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog modal-dialog-centered">
+                                            <div class="modal-content text-start">
+                                                <form th:action="@{'/admin/danh-gia/' + ${r.id} + '/phan-hoi'}" method="post">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title fw-bold"><i class="bi bi-chat-dots text-primary me-2"></i>Phản Hồi Đánh Giá Khách Hàng</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <p class="small text-muted mb-2">Đánh giá của khách: <strong th:text="${r.comment}">Bình luận</strong></p>
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-bold">Nội dung phản hồi từ Coolmate CSKH <span class="text-danger">*</span></label>
+                                                            <textarea name="adminReply" class="form-control" rows="4" th:text="${r.adminReply}" placeholder="Nhập câu trả lời lịch sự, thân thiện tới khách hàng..." required></textarea>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Hủy</button>
+                                                        <button type="submit" class="btn btn-primary btn-sm rounded-pill px-4 fw-bold">Gửi Phản Hồi</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:if="${successMessage}">
+        Swal.fire({ icon: 'success', title: 'Thành công!', text: '[[${successMessage}]]', confirmButtonColor: '#2f5acf', timer: 2500 });
+    </script>
+    <script th:if="${errorMessage}">
+        Swal.fire({ icon: 'error', title: 'Lỗi', text: '[[${errorMessage}]]', confirmButtonColor: '#2f5acf' });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

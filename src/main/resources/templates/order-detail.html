@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="'Chi Tiết Đơn Hàng ' + ${order.orderCode} + ' - Coolmate'">Chi Tiết Đơn Hàng - Coolmate</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc; color: #111; }
+        .detail-box { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; padding: 24px; }
+        .status-badge { padding: 6px 14px; border-radius: 50px; font-size: 13px; font-weight: 700; }
+        .badge-pending { background-color: #fef3c7; color: #d97706; }
+        .badge-shipping { background-color: #e0f2fe; color: #0284c7; }
+        .badge-completed { background-color: #dcfce7; color: #15803d; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-light bg-white border-bottom py-3">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4" th:href="@{/}">COOLMATE<span class="text-primary">.</span></a>
+            <div class="d-flex align-items-center gap-3"><a th:href="@{/don-hang}" class="text-muted text-decoration-none small"><i class="bi bi-arrow-left me-1"></i> Danh sách đơn hàng</a><a th:href="@{/chinh-sach-doi-tra}" class="text-primary text-decoration-none small fw-bold"><i class="bi bi-shield-check me-1"></i>Chính sách đổi trả 60 ngày</a></div>
+        </div>
+    </nav>
+
+    <div class="container py-5" th:if="${order != null}">
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+            <div>
+                <h3 class="fw-bold mb-1">Chi Tiết Đơn Hàng: <span class="text-primary" th:text="${order.orderCode}">CM123456</span></h3>
+                <small class="text-muted" th:text="'Ngày đặt: ' + ${#temporals.format(order.createdAt, 'dd/MM/yyyy HH:mm')}">03/10/2026</small>
+            </div>
+            <div>
+                <span class="status-badge badge-pending" th:if="${order.orderStatus == 'PENDING'}">Chờ xác nhận</span>
+                <span class="status-badge badge-shipping" th:if="${order.orderStatus == 'SHIPPING'}">Đang giao hàng</span>
+                <span class="status-badge badge-completed" th:if="${order.orderStatus == 'DELIVERED' or order.orderStatus == 'COMPLETED'}">Đã giao thành công</span>
+                <span class="status-badge bg-warning text-dark fw-bold" th:if="${order.orderStatus == 'RETURN_REQUESTED'}"><i class="bi bi-arrow-repeat me-1"></i>Đang yêu cầu đổi trả</span>
+
+                <!-- Nút yêu cầu đổi trả 60 ngày -->
+                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill ms-2 fw-bold" 
+                        th:if="${order.orderStatus == 'DELIVERED' or order.orderStatus == 'COMPLETED'}"
+                        data-bs-toggle="modal" data-bs-target="#returnModal">
+                    <i class="bi bi-arrow-repeat me-1"></i>Yêu cầu Đổi / Trả hàng (60 ngày)
+                </button>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="detail-box mb-4">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-bag-check text-primary me-2"></i>Sản Phẩm Đã Đặt</h5>
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Sản phẩm</th>
+                                    <th>Phân loại</th>
+                                    <th class="text-center">Số lượng</th>
+                                    <th class="text-end">Đơn giá</th>
+                                    <th class="text-end">Thành tiền</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="it : ${order.items}">
+                                    <td class="fw-bold" th:text="${it.productNameSnapshot}">Áo Thun Cotton</td>
+                                    <td>
+                                        <span class="badge bg-secondary-subtle text-dark" th:text="${it.colorNameSnapshot}">Đen</span>
+                                        <span class="badge bg-light text-dark border" th:text="${it.sizeNameSnapshot}">L</span>
+                                    </td>
+                                    <td class="text-center" th:text="${it.quantity}">1</td>
+                                    <td class="text-end" th:text="${#numbers.formatDecimal((it.unitPrice != null ? it.unitPrice : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</td>
+                                    <td class="text-end fw-bold text-primary" th:text="${#numbers.formatDecimal((it.totalPrice != null ? it.totalPrice : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="detail-box">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-geo-alt text-primary me-2"></i>Thông Tin Giao Hàng</h5>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Người nhận:</small>
+                            <strong th:text="${order.recipientName}">Nguyễn Văn A</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Số điện thoại:</small>
+                            <strong th:text="${order.recipientPhone}">0901234567</strong>
+                        </div>
+                        <div class="col-12">
+                            <small class="text-muted d-block">Địa chỉ:</small>
+                            <span th:text="${order.shippingAddress}">Số 123 đường ABC, TP.HCM</span>
+                        </div>
+                        <div class="col-12" th:if="${order.note != null and !order.note.isEmpty()}">
+                            <small class="text-muted d-block">Ghi chú:</small>
+                            <span class="fst-italic" th:text="${order.note}">Giao giờ hành chính</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="detail-box">
+                    <h5 class="fw-bold mb-3">Tóm Tắt Thanh Toán</h5>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Tạm tính:</span>
+                        <strong th:text="${#numbers.formatDecimal((order.subtotalAmount != null ? order.subtotalAmount : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Phí giao hàng:</span>
+                        <span th:if="${order.shippingFee.doubleValue() == 0}" class="text-success fw-bold">MIỄN PHÍ</span>
+                        <span th:unless="${order.shippingFee.doubleValue() == 0}" th:text="${#numbers.formatDecimal((order.shippingFee != null ? order.shippingFee : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">25,000đ</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2" th:if="${order.discountAmount != null and order.discountAmount.doubleValue() > 0}">
+                        <span class="text-muted">Giảm giá:</span>
+                        <span class="text-danger" th:text="'-' + ${#numbers.formatDecimal((order.discountAmount != null ? order.discountAmount : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">-30,000đ</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="fw-bold">Tổng thanh toán:</span>
+                        <span class="fs-4 fw-bold text-primary" th:text="${#numbers.formatDecimal((order.finalAmount != null ? order.finalAmount : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</span>
+                    </div>
+
+                    <div class="p-3 bg-light rounded-3 mb-3 small">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Phương thức:</span>
+                            <strong th:text="${order.paymentMethod}">COD</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Trạng thái:</span>
+                            <span th:if="${order.paymentStatus == 'PAID'}" class="text-success fw-bold"><i class="bi bi-check-circle-fill"></i> Đã thanh toán</span>
+                            <span th:unless="${order.paymentStatus == 'PAID'}" class="text-warning fw-bold"><i class="bi bi-clock-history"></i> Chưa thanh toán</span>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info py-2 px-3 small mb-0">
+                        <i class="bi bi-coin text-warning me-1"></i> Tích lũy CoolCash: <strong th:text="${#numbers.formatDecimal((order.coolcashEarned != null ? order.coolcashEarned : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">12,450đ</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container py-5 text-center" th:if="${order == null}">
+        <i class="bi bi-exclamation-circle display-4 text-muted"></i>
+        <h4 class="mt-3 fw-bold">Không tìm thấy đơn hàng</h4>
+        <p class="text-muted">Mã đơn hàng không hợp lệ hoặc không tồn tại trên hệ thống.</p>
+        <a th:href="@{/}" class="btn btn-primary rounded-pill px-4">Quay về trang chủ</a>
+    </div>
+
+    <!-- Modal Yêu Cầu Đổi / Trả Hàng (60 Ngày) -->
+    <div class="modal fade" id="returnModal" tabindex="-1" aria-hidden="true" th:if="${order != null}">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 shadow">
+                <form th:action="@{/doi-tra/yeu-cau}" method="post">
+                    <input type="hidden" name="orderId" th:value="${order.id}">
+                    <input type="hidden" name="orderItemId" th:if="${order.items != null and !order.items.isEmpty()}" th:value="${order.items[0].id}">
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title fw-bold text-dark"><i class="bi bi-arrow-repeat text-primary me-2"></i>Yêu Cầu Đổi / Trả Hàng 60 Ngày</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body py-4">
+                        <div class="p-3 bg-light rounded-3 mb-4 small text-secondary">
+                            <i class="bi bi-shield-check text-primary me-1"></i>
+                            <strong>Cam kết của Coolmate:</strong> Đổi tận nơi hoàn toàn miễn phí hoặc hoàn tiền 100% vào Ví CoolCash / Ngân hàng vì bất kỳ lý do gì trong vòng 60 ngày.
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Loại yêu cầu <span class="text-danger">*</span></label>
+                            <select name="returnType" class="form-select" required>
+                                <option value="RETURN_SIZE">Đổi kích cỡ (Size) khác vừa vặn hơn</option>
+                                <option value="RETURN_COLOR">Đổi màu sắc khác</option>
+                                <option value="RETURN_DEFECT">Đổi do sản phẩm có lỗi từ nhà sản xuất</option>
+                                <option value="REFUND_COOLCASH">Hoàn tiền 100% vào Ví CoolCash (+5% khuyến khích)</option>
+                                <option value="REFUND_BANK">Hoàn tiền qua chuyển khoản ngân hàng</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Chi tiết lý do <span class="text-danger">*</span></label>
+                            <input type="text" name="reason" class="form-control" placeholder="Ví dụ: Áo mặc hơi chật phần ngực, muốn đổi từ size L lên XL..." required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Ghi chú bổ sung cho bưu tá / CSKH</label>
+                            <textarea name="note" class="form-control" rows="2" placeholder="Ví dụ: Giao giờ hành chính, gọi trước khi đến 15 phút..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-dark rounded-pill px-4 fw-bold">Gửi Yêu Cầu Đổi Trả</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

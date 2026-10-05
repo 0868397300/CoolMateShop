@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng Nhập - CoolClub | Coolmate</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f1f5f9; display: flex; align-items: center; min-height: 100vh; }
+        .auth-card { background: #fff; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.06); padding: 40px; width: 100%; max-width: 440px; margin: auto; }
+    </style>
+</head>
+<body>
+    <div class="auth-card">
+        <div class="text-center mb-4">
+            <a th:href="@{/}">
+                <span class="text-dark text-decoration-none fw-bold fs-3">COOLMATE<span class="text-primary">.</span></span>
+            </a>
+            <h4 class="fw-bold mt-2">Đăng Nhập CoolClub</h4>
+            <p class="text-muted small">Tích lũy hoàn tiền ví CoolCash &amp; ưu đãi độc quyền</p>
+        </div>
+
+        <!-- Thông báo theo ngữ cảnh cụ thể -->
+        <div th:if="${param.required == 'cart'}" class="alert alert-warning small py-2 d-flex align-items-center mb-3">
+            <i class="bi bi-bag-check-fill me-2 fs-5 text-warning"></i>
+            <div><strong>Cần đăng nhập:</strong> Vui lòng đăng nhập tài khoản CoolClub để xem và quản lý giỏ hàng của bạn.</div>
+        </div>
+
+        <div th:if="${param.required == 'checkout'}" class="alert alert-warning small py-2 d-flex align-items-center mb-3">
+            <i class="bi bi-credit-card-fill me-2 fs-5 text-warning"></i>
+            <div><strong>Cần đăng nhập:</strong> Vui lòng đăng nhập tài khoản để tiến hành đặt hàng và thanh toán.</div>
+        </div>
+
+        <div th:if="${param.required == 'wishlist'}" class="alert alert-info small py-2 d-flex align-items-center mb-3">
+            <i class="bi bi-heart-fill me-2 fs-5 text-danger"></i>
+            <div><strong>Cần đăng nhập:</strong> Vui lòng đăng nhập tài khoản để lưu sản phẩm vào danh sách yêu thích của bạn.</div>
+        </div>
+
+        <div th:if="${param.required == 'order'}" class="alert alert-info small py-2 d-flex align-items-center mb-3">
+            <i class="bi bi-box-seam me-2 fs-5 text-primary"></i>
+            <div><strong>Cần đăng nhập:</strong> Vui lòng đăng nhập để tra cứu lịch sử và tình trạng các đơn hàng của bạn.</div>
+        </div>
+
+        <div th:if="${param.required == 'wallet'}" class="alert alert-info small py-2 d-flex align-items-center mb-3">
+            <i class="bi bi-wallet2 me-2 fs-5 text-primary"></i>
+            <div><strong>Cần đăng nhập:</strong> Vui lòng đăng nhập để kiểm tra số dư ví hoàn tiền CoolCash.</div>
+        </div>
+
+        <!-- Thông báo lỗi đăng nhập (Hiển thị duy nhất 1 box thông báo) -->
+        <div th:if="${param.error}" class="alert alert-danger small py-2 d-flex align-items-center mb-3">
+            <i class="bi bi-exclamation-triangle-fill me-2 fs-5 text-danger"></i>
+            <div>Tài khoản email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.</div>
+        </div>
+
+        <!-- Thông báo đăng ký thành công -->
+        <div th:if="${param.registered}" class="alert alert-success small py-2 d-flex align-items-center mb-3">
+            <i class="bi bi-check-circle-fill me-2 fs-5 text-success"></i>
+            <div>Đăng ký tài khoản CoolClub thành công! Bạn có thể đăng nhập ngay bên dưới.</div>
+        </div>
+
+        <!-- Thông báo đăng xuất -->
+        <div th:if="${param.logout}" class="alert alert-secondary small py-2 d-flex align-items-center mb-3">
+            <i class="bi bi-info-circle me-2 fs-5"></i>
+            <div>Bạn đã đăng xuất tài khoản thành công.</div>
+        </div>
+
+        <!-- Flash error message (nếu không phải lỗi param.error) -->
+        <div th:if="${errorMessage != null and param.error == null}" class="alert alert-danger small py-2 d-flex align-items-center mb-3">
+            <i class="bi bi-exclamation-circle-fill me-2 fs-5 text-danger"></i>
+            <div th:text="${errorMessage}"></div>
+        </div>
+
+        <form th:action="@{/auth/login-process}" method="post">
+            <div class="mb-3">
+                <label class="form-label fw-semibold small">Email</label>
+                <input type="email" name="email" class="form-control" placeholder="name@example.com" required autofocus>
+            </div>
+            <div class="mb-4">
+                <label class="form-label fw-semibold small">Mật khẩu</label>
+                <input type="password" name="password" class="form-control" placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="btn btn-dark w-100 rounded-pill py-2 fw-bold">Đăng Nhập</button>
+        </form>
+
+        <div class="text-center mt-3 small">
+            Chưa có tài khoản? <a th:href="@{/auth/register}" class="text-primary fw-bold text-decoration-none">Đăng ký ngay</a>
+        </div>
+
+        <!-- Hướng dẫn tài khoản mẫu -->
+        <div class="mt-4 p-3 bg-light rounded-3 text-muted" style="font-size: 0.8rem;">
+            <strong class="text-dark d-block mb-1"><i class="bi bi-shield-lock me-1 text-primary"></i>Tài khoản dùng thử (Mật khẩu: <code>123456</code>):</strong>
+            <div>• Quản trị: <code>admin@coolmate.me</code></div>
+            <div>• Nhân viên: <code>staff@coolmate.me</code></div>
+            <div>• Khách hàng: <code>tuan.nguyen@gmail.com</code></div>
+        </div>
+    </div>
+</body>
+</html>

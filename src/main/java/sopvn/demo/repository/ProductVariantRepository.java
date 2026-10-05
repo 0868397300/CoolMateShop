@@ -10,7 +10,13 @@ import java.util.Optional;
 @Repository
 public interface ProductVariantRepository extends JpaRepository<ProductVariant, Long> {
 
-    List<ProductVariant> findByProduct_IdAndIsActiveTrue(Long productId);
+    List<ProductVariant> findByProductIdAndIsActiveTrue(Long productId);
 
     Optional<ProductVariant> findBySku(String sku);
+
+    Optional<ProductVariant> findByProductIdAndColorIdAndSizeId(Long productId, Integer colorId, Integer sizeId);
+
+    List<ProductVariant> findByStockQuantityLessThanEqualAndIsActiveTrueOrderByStockQuantityAsc(Integer threshold);
+
+    List<ProductVariant> findByIsActiveTrue();
 }

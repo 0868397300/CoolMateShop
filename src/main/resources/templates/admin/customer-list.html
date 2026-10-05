@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hội Viên & Khách Hàng - Coolmate Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f1f5f9; color: #0f172a; }
+        .sidebar { width: 260px; min-height: 100vh; background: #0f172a; color: #fff; position: fixed; }
+        .sidebar a { color: #94a3b8; text-decoration: none; display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-radius: 8px; font-weight: 500; }
+        .sidebar a:hover, .sidebar a.active { color: #fff; background: #1e293b; }
+        .main-wrapper { margin-left: 260px; padding: 30px; }
+        .card-custom { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; }
+        .badge-tier-NEW { background-color: #94a3b8; color: #fff; }
+        .badge-tier-SILVER { background-color: #cbd5e1; color: #334155; }
+        .badge-tier-GOLD { background-color: #f59e0b; color: #fff; }
+        .badge-tier-PLATINUM { background-color: #8b5cf6; color: #fff; }
+    </style>
+</head>
+<body>
+    <div class="d-flex">
+        <!-- Sidebar -->
+        <div class="sidebar p-3">
+            <h4 class="fw-bold px-3 py-2 text-white mb-4">COOLMATE<span class="text-primary">.</span> <span class="badge bg-primary fs-6">ADMIN</span></h4>
+            <div class="d-flex flex-column gap-1">
+                <a th:href="@{/admin/dashboard}"><i class="bi bi-speedometer2"></i> Tổng quan tài chính</a>
+                <a th:href="@{/admin/don-hang}"><i class="bi bi-receipt"></i> Quản lý đơn hàng</a>
+                <a th:href="@{/admin/san-pham}"><i class="bi bi-box-seam"></i> Quản lý sản phẩm</a>
+                <a th:href="@{/admin/danh-muc}"><i class="bi bi-tags"></i> Danh mục &amp; BST</a>
+                <a th:href="@{/admin/nhap-kho}"><i class="bi bi-box-arrow-in-down"></i> Quản lý nhập kho</a>
+                <a th:href="@{/admin/doi-tra}"><i class="bi bi-arrow-repeat"></i> Đổi trả 60 ngày</a>
+                <a th:href="@{/admin/khach-hang}" class="active"><i class="bi bi-people"></i> Hội viên &amp; Khách hàng</a>
+                <a th:href="@{/admin/khuyen-mai}"><i class="bi bi-ticket-perforated"></i> Khuyến mãi &amp; Combo</a>
+                <a th:href="@{/admin/danh-gia}"><i class="bi bi-star"></i> Đánh giá &amp; Fit Size</a>
+                <a th:href="@{/}" target="_blank" class="mt-4 text-warning"><i class="bi bi-shop"></i> Xem Website</a>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-wrapper flex-grow-1">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h3 class="fw-bold mb-1">Quản Lý Hội Viên & Khách Hàng</h3>
+                    <p class="text-muted small mb-0">Tra cứu hồ sơ khách hàng, phân hạng thành viên CoolClub và điều chỉnh số dư ví CoolCash.</p>
+                </div>
+            </div>
+
+            <!-- Filter & Search Bar -->
+            <div class="card-custom p-3 mb-4">
+                <form th:action="@{/admin/khach-hang}" method="get" class="row g-2 align-items-center">
+                    <div class="col-md-5">
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
+                            <input type="text" name="keyword" class="form-control border-start-0" placeholder="Tìm theo Họ tên, Email, Số điện thoại..." th:value="${keyword}">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select name="tier" class="form-select">
+                            <option value="">-- Tất cả hạng hội viên --</option>
+                            <option value="NEW" th:selected="${tier == 'NEW'}">Hạng Mới (NEW)</option>
+                            <option value="SILVER" th:selected="${tier == 'SILVER'}">Hạng Bạc (SILVER)</option>
+                            <option value="GOLD" th:selected="${tier == 'GOLD'}">Hạng Vàng (GOLD)</option>
+                            <option value="PLATINUM" th:selected="${tier == 'PLATINUM'}">Hạng Bạch Kim (PLATINUM)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="status" class="form-select">
+                            <option value="">-- Trạng thái --</option>
+                            <option value="ACTIVE" th:selected="${status == 'ACTIVE'}">Hoạt động</option>
+                            <option value="INACTIVE" th:selected="${status == 'INACTIVE'}">Đã khóa</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary w-100 rounded-pill"><i class="bi bi-funnel me-1"></i>Lọc</button>
+                        <a th:href="@{/admin/khach-hang}" class="btn btn-outline-secondary rounded-pill" title="Xóa bộ lọc"><i class="bi bi-arrow-counterclockwise"></i></a>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Customer Table -->
+            <div class="card-custom overflow-hidden">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small text-uppercase">
+                            <tr>
+                                <th class="ps-3">ID</th>
+                                <th>Khách Hàng</th>
+                                <th>Liên Hệ</th>
+                                <th>Hạng Hội Viên</th>
+                                <th>Tổng Chi Tiêu</th>
+                                <th>Ví CoolCash</th>
+                                <th>Trạng Thái</th>
+                                <th class="text-end pe-3">Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:if="${customers == null or customers.isEmpty()}">
+                                <td colspan="8" class="text-center py-4 text-muted">Không tìm thấy khách hàng nào phù hợp với bộ lọc.</td>
+                            </tr>
+                            <tr th:each="c : ${customers}">
+                                <td class="ps-3 fw-bold text-muted" th:text="${c.id}">1</td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi bi-person-circle fs-4 text-primary"></i>
+                                        <div>
+                                            <strong class="d-block text-dark" th:text="${c.fullName}">Nguyễn Văn A</strong>
+                                            <small class="text-muted" th:text="'Tham gia: ' + ${c.createdAt}">2026-09-01</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="small">
+                                        <div><i class="bi bi-envelope me-1 text-muted"></i><span th:text="${c.email}">email@example.com</span></div>
+                                        <div><i class="bi bi-telephone me-1 text-muted"></i><span th:text="${c.phone != null ? c.phone : 'Chưa có'}">0901234567</span></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge rounded-pill px-3 py-1 fw-bold"
+                                          th:classappend="'badge-tier-' + ${c.membershipTier != null ? c.membershipTier : 'NEW'}"
+                                          th:text="${c.membershipTier != null ? c.membershipTier : 'NEW'}">GOLD</span>
+                                </td>
+                                <td>
+                                    <strong class="text-dark" th:text="${#numbers.formatDecimal(c.totalSpent != null ? c.totalSpent : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">0đ</strong>
+                                </td>
+                                <td>
+                                    <strong class="text-primary" th:text="${#numbers.formatDecimal(c.coolcashBalance != null ? c.coolcashBalance : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">0đ</strong>
+                                </td>
+                                <td>
+                                    <span th:if="${c.isActive}" class="badge bg-success bg-opacity-25 text-success border border-success">Hoạt động</span>
+                                    <span th:unless="${c.isActive}" class="badge bg-danger bg-opacity-25 text-danger border border-danger">Bị khóa</span>
+                                </td>
+                                <td class="text-end pe-3">
+                                    <div class="btn-group btn-group-sm">
+                                        <!-- Modal Trigger Điều Chỉnh Ví -->
+                                        <button class="btn btn-outline-primary" data-bs-toggle="modal" th:data-bs-target="'#walletModal' + ${c.id}" title="Cộng/Trừ ví CoolCash">
+                                            <i class="bi bi-wallet2"></i>
+                                        </button>
+                                        <!-- Modal Trigger Đổi Hạng -->
+                                        <button class="btn btn-outline-warning" data-bs-toggle="modal" th:data-bs-target="'#tierModal' + ${c.id}" title="Đổi hạng hội viên">
+                                            <i class="bi bi-gem"></i>
+                                        </button>
+                                        <!-- Khóa / Mở Khóa -->
+                                        <form th:action="@{'/admin/khach-hang/' + ${c.id} + '/toggle-status'}" method="post" class="d-inline">
+                                            <button type="submit" class="btn btn-outline-secondary" th:title="${c.isActive ? 'Khóa tài khoản' : 'Mở khóa'}">
+                                                <i class="bi" th:classappend="${c.isActive ? 'bi-lock' : 'bi-unlock'}"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    <!-- Wallet Modal -->
+                                    <div class="modal fade" th:id="'walletModal' + ${c.id}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog modal-dialog-centered">
+                                            <div class="modal-content text-start">
+                                                <form th:action="@{'/admin/khach-hang/' + ${c.id} + '/dieu-chinh-vi'}" method="post">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title fw-bold"><i class="bi bi-wallet2 text-primary me-2"></i>Điều Chỉnh Ví CoolCash</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <p class="small text-muted mb-3">Khách hàng: <strong th:text="${c.fullName}">Tên</strong> | Số dư hiện tại: <strong class="text-primary" th:text="${#numbers.formatDecimal(c.coolcashBalance != null ? c.coolcashBalance : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">0đ</strong></p>
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-bold">Hành động</label>
+                                                            <select name="type" class="form-select">
+                                                                <option value="PLUS">Cộng thêm CoolCash (+)</option>
+                                                                <option value="MINUS">Khấu trừ CoolCash (-)</option>
+                                                            </select>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-bold">Số tiền (VNĐ)</label>
+                                                            <input type="number" name="amount" class="form-control" placeholder="Ví dụ: 50000" min="1000" required>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-bold">Lý do điều chỉnh</label>
+                                                            <input type="text" name="reason" class="form-control" placeholder="Ví dụ: Đền bù trải nghiệm dịch vụ..." required>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Hủy</button>
+                                                        <button type="submit" class="btn btn-primary btn-sm rounded-pill px-4 fw-bold">Xác nhận</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Tier Modal -->
+                                    <div class="modal fade" th:id="'tierModal' + ${c.id}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog modal-dialog-centered">
+                                            <div class="modal-content text-start">
+                                                <form th:action="@{'/admin/khach-hang/' + ${c.id} + '/doi-hang'}" method="post">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title fw-bold"><i class="bi bi-gem text-warning me-2"></i>Thay Đổi Hạng Hội Viên</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <p class="small text-muted mb-3">Khách hàng: <strong th:text="${c.fullName}">Tên</strong></p>
+                                                        <div class="mb-3">
+                                                            <label class="form-label small fw-bold">Chọn hạng mới</label>
+                                                            <select name="tier" class="form-select">
+                                                                <option value="NEW" th:selected="${c.membershipTier == 'NEW'}">Hạng Mới (NEW) - Hoàn 3%</option>
+                                                                <option value="SILVER" th:selected="${c.membershipTier == 'SILVER'}">Hạng Bạc (SILVER) - Hoàn 5%</option>
+                                                                <option value="GOLD" th:selected="${c.membershipTier == 'GOLD'}">Hạng Vàng (GOLD) - Hoàn 7%</option>
+                                                                <option value="PLATINUM" th:selected="${c.membershipTier == 'PLATINUM'}">Hạng Bạch Kim (PLATINUM) - Hoàn 10%</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Hủy</button>
+                                                        <button type="submit" class="btn btn-warning btn-sm rounded-pill px-4 fw-bold">Cập nhật hạng</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:if="${successMessage}">
+        Swal.fire({ icon: 'success', title: 'Thành công!', text: '[[${successMessage}]]', confirmButtonColor: '#2f5acf', timer: 2500 });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

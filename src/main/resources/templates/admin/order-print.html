@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="'Phiếu Đóng Hàng #' + ${order.orderCode}">Phiếu Giao Hàng</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; color: #000; background: #fff; padding: 20px; }
+        .invoice-box { max-width: 800px; margin: auto; border: 1px solid #eee; padding: 30px; border-radius: 8px; }
+        @media print {
+            .no-print { display: none !important; }
+            .invoice-box { border: none; padding: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-box">
+        <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
+            <div>
+                <h3 class="fw-bold mb-0">COOLMATE<span class="text-primary">.</span></h3>
+                <small class="text-muted">CÔNG TY TNHH FASTECH ASIA</small>
+            </div>
+            <div class="text-end">
+                <h5 class="fw-bold mb-0 text-primary" th:text="'PHIẾU ĐÓNG GÓI: #' + ${order.orderCode}">#CM123</h5>
+                <small class="text-muted" th:text="'Ngày đặt: ' + ${order.createdAt}">2026-10-01</small>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-6">
+                <h6 class="fw-bold text-uppercase small text-muted">Người Nhận</h6>
+                <div class="fw-bold" th:text="${order.recipientName}">Họ Tên</div>
+                <div th:text="'SĐT: ' + ${order.recipientPhone}">0901234567</div>
+                <div th:text="${order.shippingAddress}">Địa chỉ giao hàng</div>
+            </div>
+            <div class="col-6 text-end">
+                <h6 class="fw-bold text-uppercase small text-muted">Phương Thức Thanh Toán</h6>
+                <div class="fw-bold" th:text="${order.paymentMethod}">COD</div>
+                <div th:text="'Trạng thái: ' + ${order.paymentStatus}">UNPAID</div>
+                <div th:if="${order.note != null and !order.note.isBlank()}" class="mt-2 text-danger fst-italic" th:text="'Ghi chú: ' + ${order.note}">Ghi chú</div>
+            </div>
+        </div>
+
+        <table class="table table-bordered mb-4">
+            <thead class="table-light">
+                <tr>
+                    <th>STT</th>
+                    <th>Tên Sản Phẩm / SKU</th>
+                    <th>Màu &amp; Size</th>
+                    <th class="text-center">Số Lượng</th>
+                    <th class="text-end">Đơn Giá</th>
+                    <th class="text-end">Thành Tiền</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="item, iter : ${order.items}">
+                    <td th:text="${iter.count}">1</td>
+                    <td>
+                        <strong th:text="${item.productNameSnapshot}">Áo Thun</strong>
+                        <small class="d-block text-muted" th:text="'SKU: ' + ${item.skuSnapshot}"></small>
+                    </td>
+                    <td th:text="${item.colorNameSnapshot} + ' / ' + ${item.sizeNameSnapshot}">Đen / L</td>
+                    <td class="text-center fw-bold" th:text="${item.quantity}">1</td>
+                    <td class="text-end" th:text="${#numbers.formatDecimal((item.unitPrice != null ? item.unitPrice : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</td>
+                    <td class="text-end fw-bold" th:text="${#numbers.formatDecimal((item.totalPrice != null ? item.totalPrice : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="5" class="text-end fw-bold">Tạm tính:</td>
+                    <td class="text-end" th:text="${#numbers.formatDecimal(order.subtotalAmount != null ? order.subtotalAmount : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">0đ</td>
+                </tr>
+                <tr th:if="${order.voucherDiscountAmount != null and order.voucherDiscountAmount.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
+                    <td colspan="5" class="text-end text-success fw-bold">Giảm giá Voucher:</td>
+                    <td class="text-end text-success" th:text="'-' + ${#numbers.formatDecimal((order.voucherDiscountAmount != null ? order.voucherDiscountAmount : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">0đ</td>
+                </tr>
+                <tr th:if="${order.coolcashUsed != null and order.coolcashUsed.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
+                    <td colspan="5" class="text-end text-success fw-bold">Dùng ví CoolCash:</td>
+                    <td class="text-end text-success" th:text="'-' + ${#numbers.formatDecimal((order.coolcashUsed != null ? order.coolcashUsed : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">0đ</td>
+                </tr>
+                <tr>
+                    <td colspan="5" class="text-end fw-bold">Phí giao hàng:</td>
+                    <td class="text-end" th:text="${#numbers.formatDecimal(order.shippingFee != null ? order.shippingFee : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">0đ</td>
+                </tr>
+                <tr class="table-light">
+                    <td colspan="5" class="text-end fw-bold fs-5">TỔNG THANH TOÁN:</td>
+                    <td class="text-end fw-bold fs-5 text-primary" th:text="${#numbers.formatDecimal(order.finalAmount != null ? order.finalAmount : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">0đ</td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <div class="row pt-4 text-center">
+            <div class="col-6">
+                <p class="fw-bold mb-5">Người Lập Phiếu</p>
+                <small class="text-muted">(Ký, ghi rõ họ tên)</small>
+            </div>
+            <div class="col-6">
+                <p class="fw-bold mb-5">Đơn Vị Vận Chuyển / Người Nhận</p>
+                <small class="text-muted">(Ký, ghi rõ họ tên)</small>
+            </div>
+        </div>
+
+        <div class="mt-5 text-center no-print">
+            <button class="btn btn-primary rounded-pill px-4 fw-bold" onclick="window.print()"><i class="bi bi-printer me-1"></i>In Phiếu Này</button>
+            <button class="btn btn-outline-secondary rounded-pill px-4 ms-2" onclick="window.close()">Đóng</button>
+        </div>
+    </div>
+</body>
+</html>

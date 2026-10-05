@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng Ký - CoolClub | Coolmate</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f1f5f9; display: flex; align-items: center; min-height: 100vh; }
+        .auth-card { background: #fff; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.06); padding: 40px; width: 100%; max-width: 480px; margin: auto; }
+        .field-error { font-size: 0.825rem; margin-top: 4px; color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="auth-card">
+        <div class="text-center mb-4">
+            <a th:href="@{/}">
+                <span class="text-dark text-decoration-none fw-bold fs-3">COOLMATE<span class="text-primary">.</span></span>
+            </a>
+            <h4 class="fw-bold mt-2">Đăng Ký Thành Viên CoolClub</h4>
+            <p class="text-muted small">Nhận ngay voucher 50K và tích lũy hoàn tiền ví CoolCash</p>
+        </div>
+
+        <div th:if="${errorMessage}" class="alert alert-danger small py-2 d-flex align-items-center mb-3">
+            <i class="bi bi-exclamation-triangle-fill me-2 fs-5 text-danger"></i>
+            <span th:text="${errorMessage}"></span>
+        </div>
+
+        <form th:action="@{/auth/register}" th:object="${registerRequest}" method="post">
+            <div class="mb-3">
+                <label class="form-label fw-semibold small">Họ và Tên <span class="text-danger">*</span></label>
+                <input type="text" th:field="*{fullName}" class="form-control" placeholder="Ví dụ: Nguyễn Văn A" required>
+                <div class="field-error" th:if="${#fields.hasErrors('fullName')}" th:errors="*{fullName}"></div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-semibold small">Địa chỉ Email <span class="text-danger">*</span></label>
+                <input type="email" th:field="*{email}" class="form-control" placeholder="name@example.com" required>
+                <div class="field-error" th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-semibold small">Số điện thoại di động</label>
+                <input type="tel" th:field="*{phone}" class="form-control" placeholder="Ví dụ: 0988111222">
+                <div class="field-error" th:if="${#fields.hasErrors('phone')}" th:errors="*{phone}"></div>
+            </div>
+            <div class="row g-2 mb-3">
+                <div class="col">
+                    <label class="form-label fw-semibold small">Chiều cao (cm)</label>
+                    <input type="number" th:field="*{heightCm}" class="form-control" placeholder="172" min="100" max="250">
+                </div>
+                <div class="col">
+                    <label class="form-label fw-semibold small">Cân nặng (kg)</label>
+                    <input type="number" th:field="*{weightKg}" class="form-control" placeholder="68" min="30" max="200">
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="form-label fw-semibold small">Mật khẩu bảo vệ <span class="text-danger">*</span></label>
+                <input type="password" th:field="*{password}" class="form-control" placeholder="Tối thiểu 6 ký tự" required>
+                <div class="field-error" th:if="${#fields.hasErrors('password')}" th:errors="*{password}"></div>
+            </div>
+            <button type="submit" class="btn btn-dark w-100 rounded-pill py-2 fw-bold">Đăng Ký Tài Khoản</button>
+        </form>
+
+        <div class="text-center mt-4 small">
+            Đã có tài khoản? <a th:href="@{/auth/login}" class="text-primary fw-bold text-decoration-none">Đăng nhập ngay</a>
+        </div>
+    </div>
+</body>
+</html>

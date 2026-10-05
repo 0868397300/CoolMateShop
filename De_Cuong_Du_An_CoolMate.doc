@@ -1,0 +1,376 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns:dt="uuid:C2F41010-65B3-11d1-A29F-00AA00C14882" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta http-equiv=Content-Type content="text/html; charset=utf-8">
+<meta name=ProgId content=Word.Document>
+<meta name=Generator content="Microsoft Word 14">
+<meta name=Originator content="Microsoft Word 14">
+<title>Đề Cương Dự Án CoolMate Shop - v2.0</title>
+<!--[if gte mso 9]><xml>
+<o:DocumentProperties>
+ <o:Author>CoolMate Dev Team</o:Author>
+ <o:LastAuthor>Trọng Nguyễn</o:LastAuthor>
+ <o:Revision>2</o:Revision>
+ <o:Pages>3</o:Pages>
+ <o:Characters>7800</o:Characters>
+ <o:Lines>1</o:Lines>
+ <o:Paragraphs>1</o:Paragraphs>
+</o:DocumentProperties>
+<o:CustomDocumentProperties>
+ <o:KSOProductBuildVer dt:dt="string">1033-12.1.0.28485</o:KSOProductBuildVer>
+</o:CustomDocumentProperties>
+</xml><![endif]-->
+<!--[if gte mso 9]><xml>
+<w:WordDocument>
+ <w:View>Print</w:View>
+ <w:Zoom>100</w:Zoom>
+ <w:DoNotOptimizeForBrowser/>
+</w:WordDocument>
+</xml><![endif]-->
+<style>
+@font-face{ font-family:"Times New Roman"; }
+@font-face{ font-family:"Calibri"; }
+p.MsoNormal, li.MsoNormal, div.MsoNormal {
+    margin:0pt; margin-bottom:.0001pt; font-family:"Times New Roman",serif; font-size:12.0pt; line-height:1.3;
+}
+h1 {
+    margin-top:12.0pt; margin-bottom:6.0pt; text-align:center; font-family:"Times New Roman",serif;
+    color:#1B2A4A; font-weight:bold; text-transform:uppercase; font-size:18.0pt;
+}
+h2 {
+    margin-top:16.0pt; margin-bottom:6.0pt; border-bottom:1.5pt solid #1B2A4A; padding-bottom:3.0pt;
+    text-align:left; font-family:"Times New Roman",serif; color:#1B2A4A; font-weight:bold;
+    text-transform:uppercase; font-size:14.0pt;
+}
+h3 {
+    margin-top:10.0pt; margin-bottom:4.0pt; text-align:left; font-family:"Times New Roman",serif;
+    color:#2C3E50; font-weight:bold; font-size:13.0pt;
+}
+.meta-box {
+    margin-bottom:15.0pt; border:1.0pt solid #1B2A4A; padding:10.0pt; background:#F4F6F9;
+    font-family:"Times New Roman",serif; font-size:12.0pt;
+}
+table.MsoNormalTable {
+    border-collapse:collapse; width:100%; border:1.0pt solid #000000; font-family:"Times New Roman",serif; font-size:11.5pt;
+}
+table.MsoNormalTable th {
+    background:#1B2A4A; color:#FFFFFF; font-weight:bold; padding:6.0pt; border:1.0pt solid #000000; text-align:left;
+}
+table.MsoNormalTable td {
+    padding:6.0pt; border:1.0pt solid #000000; vertical-align:top;
+}
+.badge-code {
+    font-family:"Courier New",monospace; font-weight:bold; color:#1B2A4A;
+}
+</style>
+</head>
+<body style="tab-interval:21pt;">
+<div class="Section0">
+
+<h1>TÀI LIỆU ĐỀ CƯƠNG & ĐẶC TẢ NGHIỆP VỤ DỰ ÁN</h1>
+<p class="MsoNormal" align="center" style="text-align:center; margin-bottom:15pt;">
+<i>Hệ thống Thương mại Điện tử Thời trang Nam D2C – CoolMate Platform (Phiên bản v2.0 - Chuẩn hóa Nhập kho & Phân tích Lợi nhuận)</i>
+</p>
+
+<div class="meta-box">
+<b>Tên dự án:</b> Xây dựng Hệ thống Website Thương mại Điện tử Thời trang Nam CoolMate<br>
+<b>Mô hình tham chiếu:</b> https://www.coolmate.me/<br>
+<b>Ngôn ngữ & Công cụ phát triển:</b> Java 17/21, Spring Boot 3, Spring Tool Suite (STS)<br>
+<b>Hệ quản trị Cơ sở dữ liệu:</b> Microsoft SQL Server (18 bảng chuẩn hóa quan hệ)<br>
+<b>Ngày cập nhật:</b> 03/10/2026 (Bổ sung Phân hệ Nhập kho, Quản lý Giá vốn và Tính toán Lợi nhuận thực tế)
+</div>
+
+<h2>PHẦN 1: TỔNG QUAN & MỤC TIÊU DỰ ÁN</h2>
+<h3>1.1. Bối cảnh & Lý do hình thành dự án</h3>
+<p class="MsoNormal" style="text-align:justify; margin-bottom:8pt;">
+Thương mại điện tử ngành thời trang nam theo mô hình D2C (Direct-to-Consumer) đòi hỏi sự chuẩn xác cao trong quản lý biến thể sản phẩm, tiện lợi khi chọn kích cỡ trực tuyến, chính sách chăm sóc sau bán hàng minh bạch và đặc biệt là <b>hệ thống quản lý chuỗi cung ứng – kho vận chuẩn xác</b>. Lấy cảm hứng từ mô hình thành công của Coolmate, dự án hướng tới xây dựng một nền tảng mua sắm thời trang nam toàn diện, hiện đại, khép kín từ khâu nhập hàng từ xưởng may, quản lý giá vốn, bán hàng đa kênh cho đến báo cáo tài chính và đổi trả 60 ngày trên nền tảng Java Spring Boot và Microsoft SQL Server.
+</p>
+
+<h3>1.2. Mục tiêu cốt lõi của hệ thống</h3>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:4pt;">
+• <b>Quản lý Biến thể Sản phẩm (SKU Variants):</b> Quản lý chi tiết từng sản phẩm theo cặp Màu sắc × Kích cỡ (SKU), kiểm soát giá niêm yết, giá bán, giá vốn nhập hàng, tồn kho riêng biệt và tự động đồng bộ bộ ảnh hiển thị theo màu sắc khách hàng chọn.
+</p>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:4pt;">
+• <b>Quản lý Nhập kho & Phân tích Lợi nhuận (Stock Intake & Profit Calculation):</b> Quản lý quy trình nhập hàng từ nhà cung cấp/xưởng may gia công bằng Phiếu nhập kho (Goods Receipt). Tự động cộng dồn số lượng tồn kho theo từng SKU, lưu vết đơn giá nhập (Giá vốn / Cost Price) để tính toán chính xác Giá vốn hàng bán (COGS), Doanh thu thuần, Lợi nhuận gộp và Tỷ suất lợi nhuận biên trên Dashboard.
+</p>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:4pt;">
+• <b>Tư vấn Chọn Size Thông minh:</b> Đề xuất kích cỡ vừa vặn nhất dựa trên thông số Chiều cao (cm), Cân nặng (kg) và phom dáng mong muốn của người mặc.
+</p>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:4pt;">
+• <b>Mua sắm theo Combo & Ví hoàn tiền CoolCash:</b> Tự động áp dụng chiết khấu khi khách hàng mua đủ số lượng sản phẩm theo Combo (Mix & Match), kết hợp mã giảm giá Voucher và cơ chế tích lũy hạng hội viên CoolClub hoàn tiền vào ví CoolCash.
+</p>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:4pt;">
+• <b>Thanh toán Trực tuyến & Đổi trả 60 ngày:</b> Tích hợp cổng thanh toán VNPAY Sandbox, đảm bảo an toàn giao dịch tồn kho bằng Optimistic Locking và hỗ trợ đăng ký đổi size/trả hàng trực tuyến trong vòng 60 ngày.
+</p>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:4pt;">
+• <b>Đánh giá Thực tế Xác thực Mua hàng (Social Proof):</b> Hiển thị nhận xét thực tế của khách hàng đã mua kèm theo thông tin Chiều cao, Cân nặng và Màu sắc/Kích cỡ đã chọn.
+</p>
+
+<h2>PHẦN 2: PHÂN TÍCH TÁC NHÂN & PHÂN QUYỀN (ACTORS & ROLES)</h2>
+<table class="MsoNormalTable">
+<tr>
+    <th style="width:20%;">Tác nhân (Actor)</th>
+    <th style="width:80%;">Quyền hạn & Chức năng sử dụng</th>
+</tr>
+<tr>
+    <td><b>Guest</b><br>(Khách vãng lai)</td>
+    <td>Xem trang chủ, tìm kiếm và lọc sản phẩm đa tiêu chí; xem biến thể Màu/Size; sử dụng công cụ tư vấn Size; thêm sản phẩm vào giỏ hàng; đặt hàng nhanh và tra cứu đơn hàng bằng Mã đơn + Số điện thoại.</td>
+</tr>
+<tr>
+    <td><b>Customer</b><br>(Thành viên CoolClub)</td>
+    <td>Quản lý hồ sơ cá nhân, lưu sẵn số đo cơ thể (chiều cao, cân nặng) và sổ địa chỉ; tích lũy hạng hội viên CoolClub (New, Silver, Gold, Platinum) và tiêu điểm ví CoolCash; theo dõi đơn hàng; đăng ký Đổi Size/Trả hàng 60 ngày; viết đánh giá sản phẩm nhận CoolCash.</td>
+</tr>
+<tr>
+    <td><b>Staff</b><br>(Nhân viên Vận hành)</td>
+    <td>Tiếp nhận, xác nhận và cập nhật trạng thái đơn hàng; in phiếu giao hàng; duyệt và xử lý yêu cầu đổi/trả hàng 60 ngày; <b>lập và quản lý phiếu nhập kho theo mã SKU từ xưởng may, kiểm đếm số lượng hàng thực tế nhập kho</b>; phản hồi đánh giá của khách hàng.</td>
+</tr>
+<tr>
+    <td><b>Admin</b><br>(Quản trị viên)</td>
+    <td>Toàn quyền quản trị hệ thống: <b>Xem Dashboard báo cáo tài chính toàn diện (Doanh thu thuần, Giá vốn hàng bán COGS, Lợi nhuận gộp, Tỷ suất lợi nhuận và Giá trị tồn kho hiện tại)</b>; quản lý Danh mục đa cấp, Bộ sưu tập, Màu sắc, Kích cỡ, Sản phẩm & Biến thể SKU; <b>phê duyệt và đối soát phiếu nhập kho, thiết lập giá vốn</b>; cấu hình Khuyến mãi, Combo, Flash Sale; quản lý tài khoản Nhân viên & Khách hàng.</td>
+</tr>
+</table>
+
+<p class="MsoNormal" style="margin-top:10pt; margin-bottom:6pt;"><b>Danh sách tài khoản kiểm thử mặc định:</b></p>
+<table class="MsoNormalTable">
+<tr>
+    <th>Vai trò</th>
+    <th>Email đăng nhập</th>
+    <th>Mật khẩu</th>
+    <th>Hạng CoolClub</th>
+    <th>Số đo đã lưu</th>
+    <th>Ví CoolCash</th>
+</tr>
+<tr>
+    <td><b>Admin</b> (<span class="badge-code">ROLE_ADMIN</span>)</td>
+    <td>admin@coolmate.me</td>
+    <td>123456</td>
+    <td>PLATINUM</td>
+    <td>175cm - 70kg</td>
+    <td>500.000đ</td>
+</tr>
+<tr>
+    <td><b>Staff</b> (<span class="badge-code">ROLE_STAFF</span>)</td>
+    <td>staff@coolmate.me</td>
+    <td>123456</td>
+    <td>SILVER</td>
+    <td>170cm - 65kg</td>
+    <td>50.000đ</td>
+</tr>
+<tr>
+    <td><b>Customer 1</b> (<span class="badge-code">ROLE_CUSTOMER</span>)</td>
+    <td>tuan.nguyen@gmail.com</td>
+    <td>123456</td>
+    <td>GOLD</td>
+    <td>173cm - 68kg</td>
+    <td>85.000đ</td>
+</tr>
+<tr>
+    <td><b>Customer 2</b> (<span class="badge-code">ROLE_CUSTOMER</span>)</td>
+    <td>hoangnam.tran@gmail.com</td>
+    <td>123456</td>
+    <td>PLATINUM</td>
+    <td>178cm - 76kg</td>
+    <td>210.000đ</td>
+</tr>
+<tr>
+    <td><b>Customer 3</b> (<span class="badge-code">ROLE_CUSTOMER</span>)</td>
+    <td>quocbao.le@gmail.com</td>
+    <td>123456</td>
+    <td>NEW</td>
+    <td>166cm - 58kg</td>
+    <td>15.000đ</td>
+</tr>
+</table>
+
+<h2>PHẦN 3: QUY TRÌNH NGHIỆP VỤ CỐT LÕI (BUSINESS WORKFLOWS)</h2>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:6pt;">
+1. <b>Quy trình Khởi tạo Sản phẩm & Ma trận SKU:</b> Tạo Sản phẩm gốc (Base Product) → Chọn danh sách Màu sắc & Kích cỡ → Hệ thống tự động sinh tổ hợp mã SKU → Thiết lập Giá niêm yết, Giá bán & Giá vốn nhập hàng cho từng SKU → Tải và gắn bộ ảnh tương ứng với từng màu sắc.
+</p>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:6pt;">
+2. <b>Quy trình Quản lý Nhập kho & Tính Lợi nhuận chuẩn xác (Mới bổ sung):</b><br>
+- <i>Bước 1 (Lập phiếu nhập):</i> Nhân viên kho hoặc Admin chọn Nhà cung cấp / Xưởng may gia công, chọn các biến thể SKU (Màu × Size) cần nhập đợt này.<br>
+- <i>Bước 2 (Ghi nhận số lượng & đơn giá):</i> Nhập số lượng hàng về và Đơn giá vốn nhập (import_price). Hệ thống tính thành tiền từng món và tổng giá trị phiếu nhập.<br>
+- <i>Bước 3 (Duyệt nhập kho & Đồng bộ dữ liệu):</i> Khi hoàn tất phiếu nhập, hệ thống tự động:
+  <br>&nbsp;&nbsp;&nbsp;&nbsp;+ Cộng dồn số lượng vào kho: <code>stock_quantity = stock_quantity + quantity_imported</code>.
+  <br>&nbsp;&nbsp;&nbsp;&nbsp;+ Cập nhật giá vốn mới nhất vào bảng <code>Product_Variants</code>.
+  <br>&nbsp;&nbsp;&nbsp;&nbsp;+ Lưu vết chứng từ nhập kho vào <code>Inventory_Receipts</code> và <code>Inventory_Receipt_Items</code> để phục vụ kiểm toán.<br>
+- <i>Bước 4 (Tính toán tài chính trên Dashboard):</i> Khi đơn hàng bán ra thành công (DELIVERED/COMPLETED), hệ thống tính toán:
+  <br>&nbsp;&nbsp;&nbsp;&nbsp;• <b>Doanh thu thuần (Net Revenue)</b> = Tổng giá trị đơn hàng thực thu từ khách hàng.
+  <br>&nbsp;&nbsp;&nbsp;&nbsp;• <b>Giá vốn hàng bán (COGS)</b> = Σ (Số lượng bán × Giá vốn SKU tại thời điểm xuất).
+  <br>&nbsp;&nbsp;&nbsp;&nbsp;• <b>Lợi nhuận gộp (Gross Profit)</b> = Doanh thu thuần - Giá vốn hàng bán.
+  <br>&nbsp;&nbsp;&nbsp;&nbsp;• <b>Tỷ suất lợi nhuận biên (Profit Margin %)</b> = (Lợi nhuận gộp / Doanh thu) × 100%.
+  <br>&nbsp;&nbsp;&nbsp;&nbsp;• <b>Giá trị kho hiện tại</b> = Σ (Tồn kho hiện tại × Giá vốn SKU).
+</p>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:6pt;">
+3. <b>Quy trình Tư vấn Chọn Size Thông minh:</b> Khách hàng nhập Chiều cao (cm) & Cân nặng (kg) → Hệ thống đối chiếu bảng quy chuẩn Sizes kết hợp kiểu dáng áo (Regular/Slim/Oversize) → Đề xuất Size phù hợp nhất.
+</p>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:6pt;">
+4. <b>Quy trình Giỏ hàng, Combo & Thanh toán:</b> Chọn SKU còn tồn kho vào giỏ → Tự động tính Freeship (đơn từ 200.000đ) và chiết khấu Combo → Áp dụng mã Voucher & trừ điểm ví CoolCash (tối đa 50% giá trị đơn) → Khóa tồn kho (@Transactional + @Version) → Thanh toán COD hoặc qua cổng VNPAY.
+</p>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:6pt;">
+5. <b>Quy trình Đổi trả 60 ngày & Hoàn tiền CoolCash:</b> Đơn hàng giao thành công (DELIVERED) mở quyền đăng ký đổi size/trả hàng trong 60 ngày. Khi đơn hàng hoàn tất (COMPLETED), hệ thống tự động cộng hoàn tiền (3% - 10% tùy hạng hội viên) vào ví CoolCash, xét nâng hạng CoolClub và mở khóa quyền viết Đánh giá sản phẩm.
+</p>
+
+<h2>PHẦN 4: THIẾT KẾ CƠ SỞ DỮ LIỆU TỔNG QUAN (SQL SERVER - 18 BẢNG)</h2>
+<table class="MsoNormalTable">
+<tr>
+    <th style="width:8%;">STT</th>
+    <th style="width:30%;">Tên bảng (Table)</th>
+    <th style="width:62%;">Chức năng lưu trữ chính</th>
+</tr>
+<tr>
+    <td>1</td>
+    <td><b>Roles, Users, User_Roles, User_Addresses</b></td>
+    <td>Quản lý thông tin tài khoản, phân quyền bảo mật, số đo chiều cao/cân nặng của khách, hạng hội viên CoolClub, số dư ví CoolCash và sổ địa chỉ nhận hàng.</td>
+</tr>
+<tr>
+    <td>2</td>
+    <td><b>Categories, Collections, Colors, Sizes</b></td>
+    <td>Quản lý danh mục sản phẩm đa cấp (Cha - Con), bộ sưu tập theo nhu cầu, danh mục màu sắc (kèm mã Hex) và kích cỡ (kèm khoảng chiều cao, cân nặng chuẩn).</td>
+</tr>
+<tr>
+    <td>3</td>
+    <td><b>Products, Product_Variants, Product_Images</b></td>
+    <td>Quản lý sản phẩm gốc, chi tiết biến thể SKU (Màu sắc × Kích cỡ), giá bán, <b>giá vốn nhập hàng (import_price)</b>, số lượng tồn kho, khóa chống xung đột (@Version) và hình ảnh gắn theo màu.</td>
+</tr>
+<tr>
+    <td>4</td>
+    <td><b>Inventory_Receipts, Inventory_Receipt_Items</b><br><i>(Mới bổ sung)</i></td>
+    <td><b>Quản lý chứng từ Phiếu nhập kho từ nhà cung cấp/xưởng may gia công; chi tiết từng đợt nhập hàng theo mã biến thể SKU (Màu × Size), số lượng nhập, đơn giá vốn và tổng giá trị nhập kho để tính chi phí vốn & lợi nhuận.</b></td>
+</tr>
+<tr>
+    <td>5</td>
+    <td><b>Promotions, Combo_Rules</b></td>
+    <td>Quản lý chiến dịch mã giảm giá Voucher và quy tắc tự động chiết khấu khi khách hàng mua đủ số lượng sản phẩm theo gói Combo.</td>
+</tr>
+<tr>
+    <td>6</td>
+    <td><b>Carts, Cart_Items, Orders, Order_Items</b></td>
+    <td>Quản lý giỏ hàng, thông tin đơn đặt hàng, chi tiết SKU tại thời điểm mua, lịch sử giao dịch VNPAY/COD và tiến trình xử lý đơn hàng.</td>
+</tr>
+<tr>
+    <td>7</td>
+    <td><b>Order_Returns, Reviews, CoolCash_Transactions</b></td>
+    <td>Quản lý yêu cầu đổi size/trả hàng trong 60 ngày, đánh giá thực tế kèm số đo cơ thể người mua và lịch sử biến động số dư ví điểm thưởng CoolCash.</td>
+</tr>
+</table>
+
+<h2>PHẦN 5: CHECKLIST CHI TIẾT CÁC TÍNH NĂNG (FEATURE CHECKLIST)</h2>
+<table class="MsoNormalTable">
+<tr>
+    <th style="width:12%;">Mã CN</th>
+    <th style="width:25%;">Tên tính năng</th>
+    <th style="width:48%;">Mô tả chi tiết yêu cầu</th>
+    <th style="width:15%;">Trạng thái</th>
+</tr>
+<tr>
+    <td><b>CL-01</b></td>
+    <td>Trang chủ & Flash Sale</td>
+    <td>Mega Menu đa cấp, Banner Slider, đồng hồ đếm ngược Flash Sale, danh sách sản phẩm Bán chạy & Mới nhất.</td>
+    <td>[x] Đã hoàn thành</td>
+</tr>
+<tr>
+    <td><b>CL-02</b></td>
+    <td>Bộ lọc sản phẩm đa tiêu chí</td>
+    <td>Lọc động kết hợp theo Danh mục, Bộ sưu tập, Màu sắc, Kích cỡ, Chất liệu, Khoảng giá và Sắp xếp.</td>
+    <td>[x] Đã hoàn thành</td>
+</tr>
+<tr>
+    <td><b>CL-03</b></td>
+    <td>Chi tiết SP & Đổi ảnh theo Màu</td>
+    <td>Chọn Màu đổi ngay album ảnh tương ứng; chọn Size hiển thị đúng giá bán và số lượng tồn kho SKU.</td>
+    <td>[x] Đã hoàn thành</td>
+</tr>
+<tr>
+    <td><b>CL-04</b></td>
+    <td>Công cụ Tư vấn chọn Size</td>
+    <td>Thanh trượt nhập Chiều cao & Cân nặng, tự động tính toán và trả về kết quả gợi ý Size vừa vặn.</td>
+    <td>[x] Đã hoàn thành</td>
+</tr>
+<tr>
+    <td><b>CL-05</b></td>
+    <td>Giỏ hàng, Combo & Freeship</td>
+    <td>Đổi nhanh Màu/Size ngay trong giỏ, tự động tính chiết khấu Combo và thanh tiến trình Freeship 200K.</td>
+    <td>[x] Đã hoàn thành</td>
+</tr>
+<tr>
+    <td><b>CL-06</b></td>
+    <td>Checkout, VNPAY & CoolCash</td>
+    <td>Áp dụng mã Voucher, sử dụng điểm ví CoolCash, thanh toán COD hoặc cổng VNPAY Sandbox, gửi Email xác nhận.</td>
+    <td>[x] Đã hoàn thành</td>
+</tr>
+<tr>
+    <td><b>MB-01</b></td>
+    <td>Tài khoản & Số đo cá nhân</td>
+    <td>Đăng ký, Đăng nhập, Quên mật khẩu, quản lý Sổ địa chỉ và lưu sẵn Chiều cao/Cân nặng trong hồ sơ.</td>
+    <td>[ ] Chưa làm</td>
+</tr>
+<tr>
+    <td><b>MB-02</b></td>
+    <td>Hội viên CoolClub & Ví CoolCash</td>
+    <td>Theo dõi hạng hội viên (New, Silver, Gold, Platinum), số dư ví hiện tại và lịch sử giao dịch CoolCash.</td>
+    <td>[ ] Chưa làm</td>
+</tr>
+<tr>
+    <td><b>MB-03</b></td>
+    <td>Đổi/Trả 60 ngày & Đánh giá</td>
+    <td>Gửi yêu cầu đổi size/trả hàng trực tuyến trong 60 ngày; viết đánh giá kèm số đo cơ thể nhận điểm thưởng.</td>
+    <td>[ ] Chưa làm</td>
+</tr>
+<tr>
+    <td><b>AD-01</b></td>
+    <td>Dashboard Báo cáo Doanh thu & Lợi nhuận</td>
+    <td><b>Biểu đồ doanh thu thuần, chi phí giá vốn hàng bán (COGS), lợi nhuận gộp theo tháng/tuần, tỷ suất lợi nhuận biên; thống kê tỷ lệ đơn thành công/hủy/đổi trả; cảnh báo mã SKU sắp hết hàng.</b></td>
+    <td>[x] Đã hoàn thành</td>
+</tr>
+<tr>
+    <td><b>AD-02</b></td>
+    <td>Quản trị Danh mục & Thuộc tính</td>
+    <td>CRUD Danh mục đa cấp, Bộ sưu tập, Màu sắc (Hex code), Kích cỡ (khoảng chiều cao/cân nặng chuẩn).</td>
+    <td>[ ] Chưa làm</td>
+</tr>
+<tr>
+    <td><b>AD-03</b></td>
+    <td>Quản trị Sản phẩm & Ma trận SKU</td>
+    <td>Tạo sản phẩm gốc, tự động sinh tổ hợp SKU (Màu × Size), thiết lập giá niêm yết, giá bán, giá vốn và thư viện ảnh theo màu.</td>
+    <td>[ ] Chưa làm</td>
+</tr>
+<tr>
+    <td><b>AD-04</b></td>
+    <td>Quản trị Khuyến mãi & Combo</td>
+    <td>Cấu hình mã giảm giá Voucher, chiến dịch Flash Sale và quy tắc giảm giá tự động khi mua theo Combo.</td>
+    <td>[ ] Chưa làm</td>
+</tr>
+<tr>
+    <td><b>AD-05</b></td>
+    <td>Quản trị Đơn hàng & Đổi trả</td>
+    <td>Xử lý tiến trình đơn hàng, in phiếu giao hàng, duyệt yêu cầu Đổi Size/Trả hàng 60 ngày và hoàn kho tự động.</td>
+    <td>[ ] Chưa làm</td>
+</tr>
+<tr style="background:#EEF4FF;">
+    <td><b>AD-06</b></td>
+    <td><b>Quản trị Nhập kho & Quản lý Giá vốn (Mới)</b></td>
+    <td><b>Lập phiếu nhập kho từ nhà cung cấp / xưởng may gia công; chọn SKU theo Màu sắc & Kích cỡ; nhập số lượng và giá vốn nhập hàng; tự động cộng dồn tồn kho và cập nhật giá vốn SKU; tra cứu lịch sử chứng từ phiếu nhập.</b></td>
+    <td><b>[x] Đã hoàn thành</b></td>
+</tr>
+</table>
+
+<h2>PHẦN 6: LỘ TRÌNH TRIỂN KHAI (IMPLEMENTATION ROADMAP)</h2>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:4pt;">
+• <b>Giai đoạn 1 (Tuần 1):</b> Thiết kế CSDL 18 bảng trên SQL Server (bổ sung Nhập kho & Giá vốn), khởi tạo dự án trên Spring Tool Suite (STS) và hoàn thiện tầng JPA Entities & Repositories.
+</p>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:4pt;">
+• <b>Giai đoạn 2 (Tuần 2):</b> Cấu hình Spring Security và xây dựng phân hệ Admin quản lý Danh mục, Màu sắc, Kích cỡ, Sản phẩm, Ma trận SKU, Upload hình ảnh và <b>phân hệ Quản lý Nhập kho (Inventory Receipts)</b>.
+</p>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:4pt;">
+• <b>Giai đoạn 3 (Tuần 3):</b> Xây dựng giao diện Storefront, bộ lọc sản phẩm đa tiêu chí, trang chi tiết sản phẩm đổi biến thể động và công cụ Tư vấn chọn Size.
+</p>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:4pt;">
+• <b>Giai đoạn 4 (Tuần 4):</b> Phát triển Giỏ hàng, tính chiết khấu Combo & Voucher, tích hợp thanh toán VNPAY Sandbox, chống âm kho và quản lý đơn hàng.
+</p>
+<p class="MsoNormal" style="margin-left:24pt; text-indent:-18pt; margin-bottom:4pt;">
+• <b>Giai đoạn 5 (Tuần 5):</b> Hoàn thiện hạng hội viên CoolClub, ví hoàn tiền CoolCash, quy trình Đổi/Trả hàng 60 ngày, Đánh giá thực tế và <b>Dashboard thống kê Doanh thu, Chi phí Giá vốn & Lợi nhuận gộp toàn diện</b>.
+</p>
+
+</div>
+</body>
+</html>

@@ -1,31 +1,26 @@
 package sopvn.demo.controller;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
-import sopvn.demo.entity.Category;
-import sopvn.demo.entity.Product;
 import sopvn.demo.repository.CategoryRepository;
 import sopvn.demo.repository.ProductRepository;
 
-import java.util.List;
-
 @Controller
-@RequiredArgsConstructor
 public class HomeController {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
 
+    public HomeController(ProductRepository productRepository, CategoryRepository categoryRepository) {
+        this.productRepository = productRepository;
+        this.categoryRepository = categoryRepository;
+    }
+
     @GetMapping("/")
-    public String home(Model model) {
-        List<Category> categories = categoryRepository.findByParentIsNullAndIsActiveTrueOrderByDisplayOrderAsc();
-        List<Product> bestSellers = productRepository.findTop8ByStatusOrderBySoldCountDesc("ACTIVE");
-
-        model.addAttribute("categories", categories);
-        model.addAttribute("bestSellers", bestSellers);
-
+    public String index(Model model) {
+        model.addAttribute("categories", categoryRepository.findByParentIsNullAndIsActiveTrueOrderByDisplayOrderAsc());
+        model.addAttribute("bestSellers", productRepository.findTop8ByStatusOrderBySoldCountDesc("ACTIVE"));
         return "index";
     }
 }

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản Lý Đổi Trả Hàng (60 Ngày) - Coolmate Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f1f5f9; }
+        .sidebar { width: 260px; min-height: 100vh; background: #0f172a; color: #fff; }
+        .sidebar .nav-link { color: #94a3b8; padding: 12px 20px; font-weight: 500; border-radius: 8px; margin: 4px 12px; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: #1e293b; }
+        .main-content { flex: 1; padding: 30px; }
+        .card-custom { background: #fff; border-radius: 16px; border: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    </style>
+</head>
+<body>
+<div class="d-flex">
+    <!-- Sidebar -->
+    <div class="sidebar d-flex flex-column p-3">
+        <a th:href="@{/admin/dashboard}" class="text-white text-decoration-none fs-4 fw-bold px-3 py-2">
+            COOLMATE<span class="text-primary">.</span> <span class="badge bg-primary fs-6">ADMIN</span>
+        </a>
+        <hr class="text-secondary">
+        <ul class="nav nav-pills flex-column mb-auto">
+            <li class="nav-item"><a th:href="@{/admin/dashboard}" class="nav-link"><i class="bi bi-speedometer2 me-2"></i>Tổng Quan</a></li>
+            <li><a th:href="@{/admin/don-hang}" class="nav-link"><i class="bi bi-cart3 me-2"></i>Đơn Hàng</a></li>
+            <li><a th:href="@{/admin/san-pham}" class="nav-link"><i class="bi bi-box-seam me-2"></i>Sản Phẩm</a></li>
+            <li><a th:href="@{/admin/nhap-kho}" class="nav-link"><i class="bi bi-arrow-down-left-square me-2"></i>Nhập Kho</a></li>
+            <li><a th:href="@{/admin/doi-tra}" class="nav-link active"><i class="bi bi-arrow-repeat me-2"></i>Đổi Trả (60 Ngày)</a></li>
+        </ul>
+        <hr class="text-secondary">
+        <div class="px-3">
+            <a th:href="@{/}" class="btn btn-outline-light btn-sm w-100 rounded-pill"><i class="bi bi-house me-1"></i>Về Cửa Hàng</a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h3 class="fw-bold mb-1">Xử Lý Yêu Cầu Đổi / Trả Hàng (60 Ngày)</h3>
+                <p class="text-muted small mb-0">Quản lý và điều phối các yêu cầu đổi size, đổi mẫu và hoàn tiền ví CoolCash</p>
+            </div>
+        </div>
+
+        <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i><span th:text="${successMessage}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <div class="card-custom p-4">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Mã Đơn Hàng</th>
+                            <th>Khách Hàng</th>
+                            <th>Loại Yêu Cầu</th>
+                            <th>Lý Do Chi Tiết</th>
+                            <th>Số Tiền / Hoàn</th>
+                            <th>Trạng Thái</th>
+                            <th>Hành Động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:if="${returns == null or returns.isEmpty()}">
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="bi bi-check2-circle display-4 d-block mb-2 text-success"></i>
+                                Hiện tại không có yêu cầu đổi trả nào đang chờ xử lý.
+                            </td>
+                        </tr>
+                        <tr th:each="r : ${returns}">
+                            <td>
+                                <strong th:text="${r.order != null ? r.order.orderCode : 'N/A'}">CM123456</strong>
+                            </td>
+                            <td>
+                                <div class="fw-bold" th:text="${r.user != null ? r.user.fullName : 'Khách hàng'}">Nguyễn Văn A</div>
+                                <small class="text-muted" th:text="${r.user != null ? r.user.email : ''}">email@example.com</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-info-subtle text-info-emphasis" th:if="${r.returnType == 'RETURN_SIZE'}">Đổi Size</span>
+                                <span class="badge bg-primary-subtle text-primary" th:if="${r.returnType == 'RETURN_COLOR'}">Đổi Màu</span>
+                                <span class="badge bg-warning-subtle text-warning-emphasis" th:if="${r.returnType == 'REFUND_COOLCASH'}">Hoàn ví CoolCash</span>
+                                <span class="badge bg-secondary-subtle text-dark" th:unless="${r.returnType == 'RETURN_SIZE' or r.returnType == 'RETURN_COLOR' or r.returnType == 'REFUND_COOLCASH'}" th:text="${r.returnType}">Khác</span>
+                            </td>
+                            <td style="max-width: 250px;">
+                                <small th:text="${r.reason}">Không vừa size</small>
+                            </td>
+                            <td>
+                                <strong th:text="${#numbers.formatDecimal(r.refundAmount != null ? r.refundAmount : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</strong>
+                            </td>
+                            <td>
+                                <span class="badge bg-warning text-dark" th:if="${r.status == 'PENDING'}">Chờ duyệt</span>
+                                <span class="badge bg-success" th:if="${r.status == 'COMPLETED'}">Đã giải quyết</span>
+                                <span class="badge bg-danger" th:if="${r.status == 'REJECTED'}">Từ chối</span>
+                            </td>
+                            <td>
+                                <form th:if="${r.status == 'PENDING'}" th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
+                                    <input type="hidden" name="status" value="COMPLETED">
+                                    <button type="submit" class="btn btn-sm btn-success rounded-pill px-3" title="Chấp thuận & Hoàn tất">
+                                        <i class="bi bi-check-lg me-1"></i>Chấp thuận
+                                    </button>
+                                </form>
+                                <form th:if="${r.status == 'PENDING'}" th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline ms-1">
+                                    <input type="hidden" name="status" value="REJECTED">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Từ chối">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

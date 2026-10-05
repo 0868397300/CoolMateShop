@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${category != null ? category.name + ' - Coolmate' : 'Tất Cả Sản Phẩm - Coolmate'}">Danh Mục Sản Phẩm - Coolmate</title>
+    
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Bootstrap 5.3 & Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <!-- AOS (Animate On Scroll) -->
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --cm-black: #111111;
+            --cm-black-light: #1c1c1e;
+            --cm-blue: #2f5acf;
+            --cm-blue-hover: #2246a8;
+            --cm-gray-bg: #f8fafc;
+            --cm-gray-border: #e2e8f0;
+            --cm-text-muted: #64748b;
+            --cm-font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            font-family: var(--cm-font);
+            color: var(--cm-black);
+            background-color: #ffffff;
+        }
+
+        /* Top Ticker Notification */
+        .top-ticker {
+            background-color: var(--cm-black);
+            color: #f3f4f6;
+            font-size: 0.82rem;
+            padding: 7px 0;
+            font-weight: 500;
+        }
+
+        /* Sticky Glassmorphism Navbar */
+        .navbar-coolmate {
+            position: sticky;
+            top: 0;
+            z-index: 1030;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+            padding: 12px 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+        }
+
+        .brand-logo {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--cm-black);
+            text-decoration: none;
+            letter-spacing: -0.8px;
+        }
+        .brand-logo .dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--cm-blue);
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 2px;
+        }
+
+        .nav-link-cool {
+            font-weight: 600;
+            font-size: 0.92rem;
+            color: var(--cm-black);
+            padding: 8px 14px !important;
+            transition: all 0.2s ease;
+        }
+        .nav-link-cool:hover, .nav-link-cool.active {
+            color: var(--cm-blue);
+        }
+
+        /* Category Header Banner */
+        .category-hero {
+            background: linear-gradient(135deg, #0d1117 0%, #1a2234 100%);
+            color: #ffffff;
+            padding: 45px 0;
+            border-radius: 20px;
+            margin-bottom: 35px;
+            position: relative;
+            overflow: hidden;
+        }
+        .category-hero::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(47, 90, 207, 0.35) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        /* Sidebar Filter Cards */
+        .filter-panel {
+            background: #ffffff;
+            border: 1px solid var(--cm-gray-border);
+            border-radius: 16px;
+            padding: 22px;
+            margin-bottom: 24px;
+        }
+        .filter-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-bottom: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--cm-black);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .cat-list-link {
+            display: block;
+            padding: 7px 12px;
+            border-radius: 8px;
+            color: #475569;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .cat-list-link:hover, .cat-list-link.active {
+            background-color: #eff6ff;
+            color: var(--cm-blue);
+            font-weight: 700;
+        }
+
+        /* Color Filter Circles */
+        .filter-color-chip {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 0 1px #cbd5e1;
+            display: inline-block;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .filter-color-chip:hover, .filter-color-chip.active {
+            box-shadow: 0 0 0 2.5px var(--cm-blue);
+            transform: scale(1.15);
+        }
+
+        /* Size Filter Buttons */
+        .filter-size-btn {
+            min-width: 46px;
+            height: 38px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            background: #ffffff;
+            font-weight: 700;
+            font-size: 0.88rem;
+            color: var(--cm-black);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            transition: all 0.2s;
+            padding: 0 10px;
+        }
+        .filter-size-btn:hover {
+            border-color: var(--cm-black);
+            color: var(--cm-black);
+        }
+        .filter-size-btn.active {
+            background-color: var(--cm-black);
+            border-color: var(--cm-black);
+            color: #ffffff;
+        }
+
+        /* Price Filter Radios/Links */
+        .price-filter-link {
+            display: block;
+            padding: 6px 10px;
+            border-radius: 8px;
+            color: #475569;
+            text-decoration: none;
+            font-size: 0.88rem;
+            transition: all 0.2s;
+        }
+        .price-filter-link:hover, .price-filter-link.active {
+            background-color: #f1f5f9;
+            color: var(--cm-blue);
+            font-weight: 700;
+        }
+
+        /* Product Card (3:4 ratio) */
+        .product-card {
+            border: none;
+            background: transparent;
+            transition: all 0.3s ease;
+        }
+        .product-img-wrapper {
+            position: relative;
+            aspect-ratio: 3 / 4;
+            border-radius: 18px;
+            overflow: hidden;
+            background-color: #f1f5f9;
+            margin-bottom: 14px;
+        }
+        .product-img-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .product-card:hover .product-img-wrapper img {
+            transform: scale(1.08);
+        }
+
+        .badge-discount {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: #ef4444;
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 0.76rem;
+            padding: 4px 10px;
+            border-radius: 8px;
+            letter-spacing: 0.3px;
+            z-index: 2;
+        }
+        .badge-material {
+            position: absolute;
+            bottom: 12px;
+            left: 12px;
+            background: rgba(17, 17, 17, 0.75);
+            backdrop-filter: blur(8px);
+            color: #ffffff;
+            font-size: 0.74rem;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 6px;
+            z-index: 2;
+        }
+
+        .card-actions {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transform: translateX(65px);
+            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 3;
+        }
+        .product-card:hover .card-actions {
+            transform: translateX(0);
+        }
+        .btn-action-round {
+            width: 38px;
+            height: 38px;
+            background: #ffffff;
+            border: none;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--cm-black);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+        .btn-action-round:hover {
+            background-color: var(--cm-blue);
+            color: #ffffff;
+            transform: scale(1.1);
+        }
+
+        .swatch-group {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+        .color-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 1px solid rgba(0, 0, 0, 0.15);
+            display: inline-block;
+        }
+
+        .product-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--cm-black);
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-decoration: none;
+            margin-bottom: 6px;
+            min-height: 2.7em;
+        }
+        .product-title:hover {
+            color: var(--cm-blue);
+        }
+
+        .price-current {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: var(--cm-black);
+        }
+        .price-original {
+            font-size: 0.88rem;
+            color: #94a3b8;
+            text-decoration: line-through;
+            margin-left: 6px;
+        }
+        .rating-stars {
+            font-size: 0.82rem;
+            color: #f59e0b;
+        }
+        .sold-badge {
+            font-size: 0.78rem;
+            color: var(--cm-text-muted);
+        }
+
+        /* Scroll Top */
+        .btn-scroll-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            background-color: var(--cm-black);
+            color: #ffffff;
+            border: none;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1040;
+            transition: all 0.2s;
+        }
+        .btn-scroll-top:hover {
+            background-color: var(--cm-blue);
+            transform: translateY(-2px);
+        }
+        /* Quick Size Sidebar on the Left of Image */
+        .card-size-sidebar {
+            position: absolute;
+            top: 50%;
+            left: 10px;
+            transform: translateY(-50%) translateX(-25px);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 4;
+        }
+        .product-card:hover .card-size-sidebar {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(-50%) translateX(0);
+        }
+        .size-sidebar-label {
+            font-size: 0.65rem;
+            font-weight: 800;
+            color: #4b5563;
+            text-align: center;
+            letter-spacing: 0.5px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(4px);
+            border-radius: 4px;
+            padding: 1px 4px;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+        }
+        .btn-quick-size {
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(0, 0, 0, 0.15);
+            color: #111827;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
+        }
+        .btn-quick-size:hover {
+            background: #111827;
+            color: #ffffff;
+            border-color: #111827;
+            transform: scale(1.12);
+        }
+        .color-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 1px solid rgba(0, 0, 0, 0.15);
+            display: inline-block;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .color-dot.active {
+            transform: scale(1.25);
+            box-shadow: 0 0 0 2px #fff, 0 0 0 3px #111827;
+        }
+
+        /* Mega Menu Dropdown Style (Hình 2) */
+        .dropdown-mega {
+            position: static !important;
+        }
+        .dropdown-mega-menu {
+            position: absolute !important;
+            top: 100% !important;
+            left: 0 !important;
+            right: 0 !important;
+            width: 100% !important;
+            background: #ffffff !important;
+            border-top: 1px solid #e2e8f0 !important;
+            border-bottom: 2px solid #111827 !important;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15) !important;
+            display: none;
+            z-index: 1060 !important;
+        }
+        @media (min-width: 992px) {
+            .dropdown-mega:hover .dropdown-mega-menu {
+                display: block !important;
+                animation: fadeInMega 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            }
+        }
+        @keyframes fadeInMega {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .mega-heading {
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: #111827;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #111827;
+            margin-bottom: 14px;
+            letter-spacing: -0.3px;
+            transition: color 0.2s;
+        }
+        .mega-heading:hover {
+            color: #2563eb;
+            border-color: #2563eb;
+        }
+        .mega-list li {
+            margin-bottom: 8px;
+        }
+        .mega-list a {
+            color: #4b5563;
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 500;
+            display: inline-block;
+            transition: all 0.2s ease;
+        }
+        .mega-list a:hover {
+            color: #111827;
+            font-weight: 700;
+            transform: translateX(4px);
+        }
+
+    
+        /* Mega Menu Dropdowns on Hover */
+        .dropdown-mega {
+            position: static !important;
+        }
+        @media (min-width: 992px) {
+            .dropdown-mega:hover > .dropdown-mega-menu {
+                display: block !important;
+            }
+        }
+        .dropdown-mega-menu {
+            top: 100% !important;
+            left: 0 !important;
+            right: 0 !important;
+            width: 100% !important;
+            border-top: 1px solid #e2e8f0;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+            background: #ffffff !important;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Top Ticker -->
+    <div class="top-ticker text-center">
+        <div class="container d-flex justify-content-center align-items-center gap-4">
+            <span><i class="bi bi-truck me-1"></i> Miễn phí vận chuyển toàn quốc cho đơn hàng từ <strong>200.000đ</strong></span>
+            <span class="d-none d-md-inline text-secondary">|</span>
+            <span class="d-none d-md-inline"><i class="bi bi-arrow-repeat me-1"></i> Đổi trả hàng tận nơi trong <strong>60 ngày</strong></span>
+        </div>
+    </div>
+
+    <!-- Sticky Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-coolmate">
+        <div class="container">
+            <a class="brand-logo" th:href="@{/}">
+                <span>COOLMATE</span><span class="dot"></span>
+            </a>
+
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navContent">
+                <i class="bi bi-list fs-2 text-dark"></i>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navContent">
+                                <!-- Navigation with Coolmate Mega Menu (Theo Hình 2) -->
+                <!-- Navigation with Coolmate Mega Menu (Theo Hình 2 & Yêu cầu) -->
+                <ul class="navbar-nav mx-auto mb-2 mb-lg-0 align-items-center gap-1">
+                    <li class="nav-item">
+                        <a class="nav-link nav-link-cool" th:href="@{/san-pham(sort='newest')}">
+                            <span class="text-primary fw-bold">NEW</span>
+                        </a>
+                    </li>
+
+                    <!-- 1. NAM Mega Menu Parent -->
+                    <li class="nav-item dropdown dropdown-mega position-static">
+                        <a class="nav-link nav-link-cool fw-bold dropdown-toggle d-flex align-items-center gap-1" 
+                           th:href="@{/danh-muc/ao-nam}" 
+                           id="megaMenuNam" 
+                           role="button" 
+                           data-bs-toggle="dropdown" 
+                           aria-expanded="false">
+                            NAM
+                        </a>
+                        <div class="dropdown-menu dropdown-mega-menu shadow-lg border-0 rounded-0 w-100 p-0 m-0" aria-labelledby="megaMenuNam">
+                            <div class="container py-4">
+                                <div class="row g-4">
+                                    <!-- Cột 1: TẤT CẢ SẢN PHẨM -->
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/san-pham}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">TẤT CẢ SẢN PHẨM <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/san-pham(sort='newest')}" class="text-primary fw-bold text-decoration-none">Sản phẩm mới</a></li>
+                                            <li><a th:href="@{/san-pham(sort='best-seller')}" class="fw-bold text-decoration-none text-dark">Bán chạy nhất</a></li>
+                                            <li><a th:href="@{/san-pham}" class="text-decoration-none text-secondary">Khám phá Bộ sưu tập</a></li>
+                                            <li><a th:href="@{/danh-muc/do-lot-nam}" class="text-decoration-none text-secondary">Cool Set Tiết Kiệm</a></li>
+                                        </ul>
+                                    </div>
+
+                                    <!-- Cột 2: ÁO NAM -->
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/ao-nam}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">ÁO NAM <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/danh-muc/ao-nam}" class="text-decoration-none text-dark fw-semibold">Tất cả áo nam</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-thun-nam}" class="text-decoration-none text-secondary">Áo thun Cotton Compact</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-polo-nam}" class="text-decoration-none text-secondary">Áo Polo Excool Khử Mùi</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-singlet-nam}" class="text-decoration-none text-secondary">Áo Tanktop &amp; Singlet</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-khoac-nam}" class="text-decoration-none text-secondary">Áo Khoác Gió Trượt Nước</a></li>
+                                        </ul>
+                                    </div>
+
+                                    <!-- Cột 3: QUẦN NAM -->
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/quan-nam}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">QUẦN NAM <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/danh-muc/quan-nam}" class="text-decoration-none text-dark fw-semibold">Tất cả quần nam</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-short-nam}" class="text-decoration-none text-secondary">Quần Short Chạy Bộ 5"</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-dai-nam}" class="text-decoration-none text-secondary">Quần Dài UT Pants Co Giãn</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-short-nam}" class="text-decoration-none text-secondary">Quần Thể Thao Đa Năng</a></li>
+                                        </ul>
+                                    </div>
+
+                                    <!-- Cột 4: QUẦN LÓT NAM -->
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/do-lot-nam}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">QUẦN LÓT NAM <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/danh-muc/do-lot-nam}" class="text-decoration-none text-dark fw-semibold">Tất cả đồ lót</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-lot-trunk}" class="text-decoration-none text-secondary">Quần Lót Trunk (Boxer đùi)</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-lot-trunk}" class="text-decoration-none text-secondary">Vải Sợi Tre Bamboo Kháng Khuẩn</a></li>
+                                        </ul>
+                                    </div>
+
+                                    <!-- Cột 5: PHỤ KIỆN -->
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/phu-kien-nam}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">PHỤ KIỆN <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/danh-muc/phu-kien-nam}" class="text-decoration-none text-dark fw-semibold">Tất cả phụ kiện</a></li>
+                                            <li><a th:href="@{/danh-muc/tat-vo-nam}" class="text-decoration-none text-secondary">Tất / Vớ Thể Thao Đệm Gót</a></li>
+                                            <li><a th:href="@{/danh-muc/phu-kien-nam}" class="text-decoration-none text-secondary">Mũ Lưỡi Trai &amp; Balo</a></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+
+                    <!-- 2. NỮ Mega Menu Parent -->
+                    <li class="nav-item dropdown dropdown-mega position-static">
+                        <a class="nav-link nav-link-cool fw-bold dropdown-toggle d-flex align-items-center gap-1" 
+                           th:href="@{/bo-suu-tap/mac-hang-ngay}" 
+                           id="megaMenuNu" 
+                           role="button" 
+                           data-bs-toggle="dropdown" 
+                           aria-expanded="false">
+                            NỮ
+                        </a>
+                        <div class="dropdown-menu dropdown-mega-menu shadow-lg border-0 rounded-0 w-100 p-0 m-0" aria-labelledby="megaMenuNu">
+                            <div class="container py-4">
+                                <div class="row g-4">
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/bo-suu-tap/mac-hang-ngay}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">BỘ SƯU TẬP <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/bo-suu-tap/mac-hang-ngay}" class="text-primary fw-bold text-decoration-none">Mặc Hàng Ngày (Everyday)</a></li>
+                                            <li><a th:href="@{/bo-suu-tap/cong-nghe-excool}" class="text-decoration-none text-secondary">Công Nghệ Làm Mát Excool</a></li>
+                                            <li><a th:href="@{/bo-suu-tap/do-chay-bo}" class="text-decoration-none text-secondary">Đồ Chạy Bộ Năng Động</a></li>
+                                            <li><a th:href="@{/bo-suu-tap/care-and-share}" class="text-decoration-none text-secondary">Care &amp; Share Thiện Nguyện</a></li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/ao-thun-nam}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">ÁO NỮ &amp; UNISEX <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/danh-muc/ao-thun-nam}" class="text-decoration-none text-dark fw-semibold">Áo Thun Cotton Compact</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-polo-nam}" class="text-decoration-none text-secondary">Áo Polo Khử Mùi Thoáng Mát</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-khoac-nam}" class="text-decoration-none text-secondary">Áo Khoác Gió Chống Tia UV</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-singlet-nam}" class="text-decoration-none text-secondary">Áo Ba Lỗ Thể Thao Siêu Nhẹ</a></li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/quan-short-nam}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">QUẦN NỮ &amp; UNISEX <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/danh-muc/quan-short-nam}" class="text-decoration-none text-dark fw-semibold">Quần Short Thể Thao 5"</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-dai-nam}" class="text-decoration-none text-secondary">Quần Dài UT Pants Đa Năng</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-short-nam}" class="text-decoration-none text-secondary">Quần Mặc Nhà Thoáng Mát</a></li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/phu-kien-nam}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">PHỤ KIỆN NỮ &amp; UNISEX <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/danh-muc/tat-vo-nam}" class="text-decoration-none text-dark fw-semibold">Tất Cổ Ngắn Đệm Gót Êm</a></li>
+                                            <li><a th:href="@{/danh-muc/phu-kien-nam}" class="text-decoration-none text-secondary">Mũ Lưỡi Trai Năng Động</a></li>
+                                            <li><a th:href="@{/danh-muc/phu-kien-nam}" class="text-decoration-none text-secondary">Túi Tote Vải Thân Thiện</a></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+
+                    <!-- 3. THỂ THAO Mega Menu Parent -->
+                    <li class="nav-item dropdown dropdown-mega position-static">
+                        <a class="nav-link nav-link-cool fw-bold dropdown-toggle d-flex align-items-center gap-1" 
+                           th:href="@{/bo-suu-tap/do-chay-bo}" 
+                           id="megaMenuSport" 
+                           role="button" 
+                           data-bs-toggle="dropdown" 
+                           aria-expanded="false">
+                            THỂ THAO
+                        </a>
+                        <div class="dropdown-menu dropdown-mega-menu shadow-lg border-0 rounded-0 w-100 p-0 m-0" aria-labelledby="megaMenuSport">
+                            <div class="container py-4">
+                                <div class="row g-4">
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/bo-suu-tap/do-chay-bo}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">COOLMATE RUNNING <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/bo-suu-tap/do-chay-bo}" class="text-primary fw-bold text-decoration-none">Bộ Sưu Tập Chạy Bộ Chuyên Nghiệp</a></li>
+                                            <li><a th:href="@{/bo-suu-tap/cong-nghe-excool}" class="text-decoration-none text-secondary">Công Nghệ Làm Mát Excool</a></li>
+                                            <li><a th:href="@{/san-pham(sort='best-seller')}" class="text-decoration-none text-secondary">Đồ Thể Thao Bán Chạy Nhất</a></li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/ao-singlet-nam}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">ÁO THỂ THAO <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/danh-muc/ao-singlet-nam}" class="text-decoration-none text-dark fw-semibold">Áo Singlet ProMax-S1 Siêu Nhẹ 75g</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-polo-nam}" class="text-decoration-none text-secondary">Áo Polo Excool Thể Thao Khử Mùi</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-khoac-nam}" class="text-decoration-none text-secondary">Áo Khoác Gió Trượt Nước DWR</a></li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/quan-short-nam}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">QUẦN THỂ THAO <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/danh-muc/quan-short-nam}" class="text-decoration-none text-dark fw-semibold">Quần Short Chạy Bộ 5" 2 Lớp Chống Cọ</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-dai-nam}" class="text-decoration-none text-secondary">Quần Dài Co Giãn 4 Chiều</a></li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/tat-vo-nam}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">PHỤ KIỆN THỂ THAO <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/danh-muc/tat-vo-nam}" class="text-decoration-none text-dark fw-semibold">Tất Chạy Bộ Dệt Đệm Gót Kháng Khuẩn</a></li>
+                                            <li><a th:href="@{/danh-muc/phu-kien-nam}" class="text-decoration-none text-secondary">Mũ Lưỡi Trai Thể Thao Thoáng Khí</a></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+
+                    <!-- 4. PHỤ KIỆN Mega Menu Parent -->
+                    <li class="nav-item dropdown dropdown-mega position-static">
+                        <a class="nav-link nav-link-cool fw-bold dropdown-toggle d-flex align-items-center gap-1" 
+                           th:href="@{/danh-muc/phu-kien-nam}" 
+                           id="megaMenuAcc" 
+                           role="button" 
+                           data-bs-toggle="dropdown" 
+                           aria-expanded="false">
+                            PHỤ KIỆN
+                        </a>
+                        <div class="dropdown-menu dropdown-mega-menu shadow-lg border-0 rounded-0 w-100 p-0 m-0" aria-labelledby="megaMenuAcc">
+                            <div class="container py-4">
+                                <div class="row g-4">
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/tat-vo-nam}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">TẤT &amp; VỚ NAM <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/danh-muc/tat-vo-nam}" class="text-primary fw-bold text-decoration-none">Tất Cổ Ngắn Thể Thao Đệm Gót</a></li>
+                                            <li><a th:href="@{/danh-muc/tat-vo-nam}" class="text-decoration-none text-secondary">Combo 3 Đôi Tất Cotton Kháng Khuẩn</a></li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/phu-kien-nam}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">MŨ &amp; NÓN <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/danh-muc/phu-kien-nam}" class="text-decoration-none text-dark fw-semibold">Mũ Lưỡi Trai Thể Thao Che Nắng</a></li>
+                                            <li><a th:href="@{/danh-muc/phu-kien-nam}" class="text-decoration-none text-secondary">Nón Chạy Bộ Nhanh Khô</a></li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/phu-kien-nam}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">TÚI &amp; BALO <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/danh-muc/phu-kien-nam}" class="text-decoration-none text-dark fw-semibold">Túi Tote Vải Canvas Môi Trường</a></li>
+                                            <li><a th:href="@{/danh-muc/phu-kien-nam}" class="text-decoration-none text-secondary">Balo Đa Năng Tiện Lợi</a></li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/phu-kien-nam}" class="mega-heading fw-bold text-dark text-decoration-none d-block pb-2 mb-2 border-bottom">THẮT LƯNG &amp; KHÁC <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0 d-flex flex-column gap-2 small">
+                                            <li><a th:href="@{/danh-muc/phu-kien-nam}" class="text-decoration-none text-dark fw-semibold">Thắt Lưng Nam Co Giãn Tối Giản</a></li>
+                                            <li><a th:href="@{/danh-muc/phu-kien-nam}" class="text-decoration-none text-secondary">Ví Nam Tối Giản</a></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link nav-link-cool text-danger fw-bold" th:href="@{/san-pham}">
+                            <span class="badge bg-danger rounded-pill px-2 me-1">-50%</span>SALE
+                        </a>
+                    </li>
+                    <li class="nav-item ms-2">
+                        <a class="nav-link nav-link-cool text-warning fw-bold d-flex align-items-center gap-1" th:href="@{/coolclub}">
+                            <i class="bi bi-gem"></i> CoolClub VIP
+                        </a>
+                    </li>
+                </ul>
+                                    </div>
+
+                                    <!-- Cột 2: ÁO NAM -->
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/ao-nam}" class="mega-heading">ÁO NAM <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0">
+                                            <li><a th:href="@{/danh-muc/ao-nam}">Tất cả áo nam</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-singlet-nam}">Áo Tanktop &amp; Singlet</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-thun-nam}">Áo thun Cotton Compact</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-singlet-nam}">Áo Thể Thao ProMax</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-polo-nam}">Áo Polo Excool Khử Mùi</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-nam}">Áo Sơ Mi Co Giãn</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-nam}">Áo Dài Tay</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-nam}">Áo Sweater</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-khoac-nam}">Áo Khoác Gió Trượt Nước</a></li>
+                                            <li><a th:href="@{/danh-muc/ao-thun-nam}">Áo thun Graphic In Hình</a></li>
+                                        </ul>
+                                    </div>
+
+                                    <!-- Cột 3: QUẦN NAM -->
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/quan-nam}" class="mega-heading">QUẦN NAM <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0">
+                                            <li><a th:href="@{/danh-muc/quan-nam}">Tất cả quần nam</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-short-nam}">Quần Short Chạy Bộ 5"</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-dai-nam}">Quần Jogger Thể Thao</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-short-nam}">Quần Thể Thao Đa Năng</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-dai-nam}">Quần Dài UT Pants</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-dai-nam}">Quần Jean Co Giãn</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-dai-nam}">Quần Kaki Chống Nhăn</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-short-nam}">Đồ Bơi Nam Nhanh Khô</a></li>
+                                        </ul>
+                                    </div>
+
+                                    <!-- Cột 4: QUẦN LÓT NAM -->
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/do-lot-nam}" class="mega-heading">QUẦN LÓT NAM <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0">
+                                            <li><a th:href="@{/danh-muc/do-lot-nam}">Tất cả đồ lót</a></li>
+                                            <li><a th:href="@{/danh-muc/do-lot-nam}">Brief (Tam giác)</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-lot-trunk}">Trunk (Boxer đùi)</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-lot-trunk}">Boxer Brief (Boxer dài)</a></li>
+                                            <li><a th:href="@{/danh-muc/quan-lot-trunk}">Vải Sợi Tre Bamboo</a></li>
+                                        </ul>
+                                    </div>
+
+                                    <!-- Cột 5: PHỤ KIỆN -->
+                                    <div class="col-6 col-md-4 col-lg">
+                                        <a th:href="@{/danh-muc/phu-kien-nam}" class="mega-heading">PHỤ KIỆN <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <ul class="list-unstyled mega-list mb-0">
+                                            <li><a th:href="@{/danh-muc/phu-kien-nam}" class="fw-bold">Tất cả phụ kiện</a></li>
+                                            <li><small class="text-muted fst-italic">(Tất, mũ, túi...)</small></li>
+                                            <li><a th:href="@{/danh-muc/tat-vo-nam}">Tất Cổ Ngắn Đệm Gót</a></li>
+                                            <li><a th:href="@{/danh-muc/phu-kien-nam}">Mũ Lưỡi Trai Thể Thao</a></li>
+                                            <li><a th:href="@{/danh-muc/phu-kien-nam}">Túi Tote &amp; Balo</a></li>
+                                            <li><a th:href="@{/danh-muc/phu-kien-nam}">Thắt Lưng Nam</a></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link nav-link-cool" th:href="@{/danh-muc/ao-nam}">NỮ</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link nav-link-cool" th:href="@{/danh-muc/quan-short-nam}">THỂ THAO</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link nav-link-cool" th:href="@{/danh-muc/phu-kien-nam}">PHỤ KIỆN</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link nav-link-cool text-danger fw-bold" th:href="@{/san-pham}">
+                            <span class="badge bg-danger rounded-pill px-2 me-1">-50%</span>SALE
+                        </a>
+                    </li>
+                    <li class="nav-item ms-2">
+                        <a class="nav-link nav-link-cool text-warning fw-bold d-flex align-items-center gap-1" th:href="@{/coolclub}">
+                            <i class="bi bi-gem"></i> CoolClub VIP
+                        </a>
+                    </li>
+                </ul>
+
+                <div class="d-flex align-items-center gap-3">
+                    <form th:action="@{/tim-kiem}" method="get" class="d-flex">
+                        <input type="text" name="q" class="form-control form-control-sm rounded-pill px-3" placeholder="Tìm sản phẩm..." th:value="${keyword}">
+                    </form>
+
+                    <!-- Tài khoản -->
+                                        <!-- User Account Dropdown (Theo Hình 5) -->
+                    <div class="dropdown d-inline-block" th:if="${currentUser != null}">
+                        <button class="btn btn-link text-dark p-2 dropdown-toggle text-decoration-none d-flex align-items-center gap-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Tài khoản của bạn">
+                            <i class="bi bi-person-circle fs-5 text-primary"></i>
+                            <span class="small fw-bold d-none d-md-inline" th:text="${currentUser.fullName != null ? currentUser.fullName : currentUser.email}">Nguyễn Phú Trọng</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 rounded-4 p-2 mt-2" style="min-width: 250px;">
+                            <li><a class="dropdown-item py-2 fw-semibold text-primary rounded-3" th:href="@{/coolclub}"><i class="bi bi-gem me-2"></i>Hội viên CoolClub</a></li>
+                            <li><a class="dropdown-item py-2 fw-semibold rounded-3" th:href="@{/thong-tin-tai-khoan}"><i class="bi bi-person-lines-fill me-2"></i>Thông tin của tôi</a></li>
+                            <li><a class="dropdown-item py-2 fw-semibold rounded-3" th:href="@{/don-hang}"><i class="bi bi-box-seam me-2"></i>Đơn hàng của tôi</a></li>
+                            <li><a class="dropdown-item py-2 fw-semibold rounded-3" th:href="@{/vi-coolcash}"><i class="bi bi-wallet2 me-2"></i>Ví hoàn tiền CoolCash</a></li>
+                            <li><a class="dropdown-item py-2 fw-semibold rounded-3" th:href="@{/chinh-sach-doi-tra}"><i class="bi bi-arrow-repeat me-2"></i>Chính sách đổi trả 60 ngày</a></li>
+                            <li th:if="${currentUser.hasRole('ROLE_ADMIN') or currentUser.hasRole('ROLE_STAFF')}"><hr class="dropdown-divider my-2"></li>
+                            <li th:if="${currentUser.hasRole('ROLE_ADMIN') or currentUser.hasRole('ROLE_STAFF')}">
+                                <a class="dropdown-item py-2 text-danger fw-bold rounded-3" th:href="@{/admin/dashboard}"><i class="bi bi-speedometer2 me-2"></i>Trang Quản Trị Admin</a>
+                            </li>
+                            <li><hr class="dropdown-divider my-2"></li>
+                            <li>
+                                <form th:action="@{/auth/logout}" method="post" class="m-0">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm w-100 rounded-pill py-2 fw-bold"><i class="bi bi-box-arrow-right me-1"></i>Đăng xuất</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+<div th:unless="${currentUser != null}">
+                        <a th:href="@{/auth/login}" class="btn btn-outline-dark rounded-pill px-3 py-1 btn-sm">
+                            <i class="bi bi-person me-1"></i>Đăng Nhập
+                        </a>
+                    </div>
+
+                    <!-- Giỏ hàng -->
+                    <a th:if="${currentUser != null}" th:href="@{/gio-hang}" class="btn btn-dark rounded-pill px-3 py-1 position-relative btn-sm" title="Giỏ hàng">
+                        <i class="bi bi-bag me-1"></i> Giỏ Hàng
+                        <span class="badge bg-danger rounded-pill ms-1" th:if="${cartItemCount != null and cartItemCount > 0}" th:text="${cartItemCount}">0</span>
+                    </a>
+                    <a th:unless="${currentUser != null}" th:href="@{/auth/login(required='cart')}" class="btn btn-outline-dark rounded-pill px-3 py-1 position-relative btn-sm cart-link-guest" title="Giỏ hàng (Cần đăng nhập)">
+                        <i class="bi bi-bag me-1"></i> Giỏ Hàng
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="container py-4">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb small">
+                <li class="breadcrumb-item"><a th:href="@{/}" class="text-muted text-decoration-none">Trang chủ</a></li>
+                <li class="breadcrumb-item"><a th:href="@{/san-pham}" class="text-muted text-decoration-none">Sản phẩm</a></li>
+                <li class="breadcrumb-item active fw-bold text-dark" aria-current="page">
+                    <span th:if="${category != null}" th:text="${category.name}">Áo Nam</span>
+                    <span th:if="${category == null and keyword != null}" th:text="'Tìm kiếm: ' + ${keyword}">Tìm kiếm</span>
+                    <span th:if="${category == null and keyword == null}">Tất cả sản phẩm</span>
+                </li>
+            </ol>
+        </nav>
+
+        <!-- Category Banner -->
+        <div class="category-hero px-4 px-md-5" data-aos="fade-down">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <span class="badge bg-primary px-3 py-1 rounded-pill mb-2">DANH MỤC THỜI TRANG</span>
+                    <h2 class="display-6 fw-bold mb-2">
+                        <span th:if="${category != null}" th:text="${category.name}">Áo Nam</span>
+                        <span th:if="${category == null and keyword != null}" th:text="'Kết quả tìm kiếm cho: ' + ${keyword}">Kết quả tìm kiếm</span>
+                        <span th:if="${category == null and keyword == null}">Bộ Sưu Tập Thời Trang Nam Coolmate</span>
+                    </h2>
+                    <p class="text-light opacity-75 mb-0" 
+                       th:text="${category != null and category.description != null ? category.description : 'Khám phá các sản phẩm ứng dụng công nghệ dệt may hiện đại, chống nhăn, thoáng mát và co giãn thoải mái.'}">
+                        Mô tả danh mục...
+                    </p>
+                </div>
+                <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                    <span class="badge bg-light text-dark fs-6 px-3 py-2 rounded-pill fw-bold">
+                        <span th:text="${totalProducts}">8</span> sản phẩm
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- LEFT COLUMN: Multi-criteria Filters (CL-02) -->
+            <aside class="col-lg-3">
+                <!-- Sub-categories (if any) -->
+                <div class="filter-panel" th:if="${category != null and category.subCategories != null and !category.subCategories.isEmpty()}">
+                    <div class="filter-title">
+                        <span>Danh mục phụ</span>
+                        <i class="bi bi-chevron-down small"></i>
+                    </div>
+                    <div class="d-flex flex-column gap-1">
+                        <a th:href="@{'/danh-muc/' + ${category.slug}}" 
+                           class="cat-list-link active">Tất cả <span th:text="${category.name}"></span></a>
+                        <a th:each="sub : ${category.subCategories}" 
+                           th:href="@{'/danh-muc/' + ${sub.slug}}" 
+                           class="cat-list-link" 
+                           th:text="${sub.name}">Áo Thun Nam</a>
+                    </div>
+                </div>
+
+                <!-- Color Filter -->
+                <div class="filter-panel">
+                    <div class="filter-title">
+                        <span>Màu sắc</span>
+                        <a th:if="${selectedColorId != null}" 
+                           th:href="@{${currentUri}(sizeId=${selectedSizeId},minPrice=${selectedMinPrice},maxPrice=${selectedMaxPrice},sort=${selectedSort})}" 
+                           class="small text-danger text-decoration-none">Bỏ chọn</a>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a th:each="col : ${colors}" 
+                           th:href="@{${currentUri}(colorId=${selectedColorId == col.id ? null : col.id},sizeId=${selectedSizeId},minPrice=${selectedMinPrice},maxPrice=${selectedMaxPrice},sort=${selectedSort})}"
+                           class="filter-color-chip"
+                           th:classappend="${selectedColorId == col.id} ? ' active' : ''"
+                           th:style="'background-color: ' + ${col.hexCode} + ';'"
+                           th:title="${col.name}">
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Size Filter -->
+                <div class="filter-panel">
+                    <div class="filter-title">
+                        <span>Kích cỡ (Size)</span>
+                        <a th:if="${selectedSizeId != null}" 
+                           th:href="@{${currentUri}(colorId=${selectedColorId},minPrice=${selectedMinPrice},maxPrice=${selectedMaxPrice},sort=${selectedSort})}" 
+                           class="small text-danger text-decoration-none">Bỏ chọn</a>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a th:each="sz : ${sizes}" 
+                           th:href="@{${currentUri}(sizeId=${selectedSizeId == sz.id ? null : sz.id},colorId=${selectedColorId},minPrice=${selectedMinPrice},maxPrice=${selectedMaxPrice},sort=${selectedSort})}"
+                           class="filter-size-btn"
+                           th:classappend="${selectedSizeId == sz.id} ? ' active' : ''"
+                           th:text="${sz.name}">
+                            M
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Price Range Filter -->
+                <div class="filter-panel">
+                    <div class="filter-title">
+                        <span>Khoảng giá</span>
+                        <a th:if="${selectedMinPrice != null or selectedMaxPrice != null}" 
+                           th:href="@{${currentUri}(colorId=${selectedColorId},sizeId=${selectedSizeId},sort=${selectedSort})}" 
+                           class="small text-danger text-decoration-none">Bỏ chọn</a>
+                    </div>
+                    <div class="d-flex flex-column gap-1">
+                        <a th:href="@{${currentUri}(maxPrice=200000,colorId=${selectedColorId},sizeId=${selectedSizeId},sort=${selectedSort})}" 
+                           class="price-filter-link"
+                           th:classappend="${selectedMaxPrice != null and selectedMaxPrice == 200000 and selectedMinPrice == null} ? ' active text-primary fw-bold' : ''">
+                            <i class="bi bi-tag me-1"></i> Dưới 200.000đ
+                        </a>
+                        <a th:href="@{${currentUri}(minPrice=200000,maxPrice=400000,colorId=${selectedColorId},sizeId=${selectedSizeId},sort=${selectedSort})}" 
+                           class="price-filter-link"
+                           th:classappend="${selectedMinPrice != null and selectedMinPrice == 200000 and selectedMaxPrice != null and selectedMaxPrice == 400000} ? ' active text-primary fw-bold' : ''">
+                            <i class="bi bi-tag me-1"></i> 200.000đ - 400.000đ
+                        </a>
+                        <a th:href="@{${currentUri}(minPrice=400000,colorId=${selectedColorId},sizeId=${selectedSizeId},sort=${selectedSort})}" 
+                           class="price-filter-link"
+                           th:classappend="${selectedMinPrice != null and selectedMinPrice == 400000 and selectedMaxPrice == null} ? ' active text-primary fw-bold' : ''">
+                            <i class="bi bi-tag me-1"></i> Trên 400.000đ
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Clear all filters button -->
+                <div th:if="${selectedColorId != null or selectedSizeId != null or selectedMinPrice != null or selectedMaxPrice != null}">
+                    <a th:href="@{${currentUri}}" class="btn btn-outline-danger w-100 rounded-pill py-2 small fw-bold">
+                        <i class="bi bi-x-circle me-1"></i> Xóa tất cả bộ lọc
+                    </a>
+                </div>
+            </aside>
+
+            <!-- RIGHT COLUMN: Products Grid -->
+            <section class="col-lg-9">
+                <!-- Sorting Bar -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center bg-light p-3 rounded-4 mb-4">
+                    <span class="text-muted small fw-semibold">
+                        Hiển thị <strong class="text-dark" th:text="${totalProducts}">8</strong> sản phẩm
+                    </span>
+
+                    <!-- Sort Dropdown -->
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="small text-muted d-none d-sm-inline">Sắp xếp:</span>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-white bg-white border dropdown-toggle rounded-pill px-3 fw-bold" type="button" data-bs-toggle="dropdown">
+                                <span th:if="${selectedSort == 'price-asc'}">Giá tăng dần</span>
+                                <span th:if="${selectedSort == 'price-desc'}">Giá giảm dần</span>
+                                <span th:if="${selectedSort == 'newest'}">Mới nhất</span>
+                                <span th:if="${selectedSort == 'rating'}">Đánh giá cao</span>
+                                <span th:if="${selectedSort == null or selectedSort == 'best-seller'}">Bán chạy nhất</span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 rounded-3">
+                                <li><a class="dropdown-item small" th:href="@{${currentUri}(sort='best-seller',colorId=${selectedColorId},sizeId=${selectedSizeId},minPrice=${selectedMinPrice},maxPrice=${selectedMaxPrice})}">Bán chạy nhất</a></li>
+                                <li><a class="dropdown-item small" th:href="@{${currentUri}(sort='price-asc',colorId=${selectedColorId},sizeId=${selectedSizeId},minPrice=${selectedMinPrice},maxPrice=${selectedMaxPrice})}">Giá: Thấp đến Cao</a></li>
+                                <li><a class="dropdown-item small" th:href="@{${currentUri}(sort='price-desc',colorId=${selectedColorId},sizeId=${selectedSizeId},minPrice=${selectedMinPrice},maxPrice=${selectedMaxPrice})}">Giá: Cao đến Thấp</a></li>
+                                <li><a class="dropdown-item small" th:href="@{${currentUri}(sort='newest',colorId=${selectedColorId},sizeId=${selectedSizeId},minPrice=${selectedMinPrice},maxPrice=${selectedMaxPrice})}">Mới nhất</a></li>
+                                <li><a class="dropdown-item small" th:href="@{${currentUri}(sort='rating',colorId=${selectedColorId},sizeId=${selectedSizeId},minPrice=${selectedMinPrice},maxPrice=${selectedMaxPrice})}">Đánh giá cao</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div th:if="${products == null or products.isEmpty()}" class="text-center py-5">
+                    <i class="bi bi-funnel display-3 text-muted"></i>
+                    <h5 class="fw-bold mt-3">Không tìm thấy sản phẩm phù hợp</h5>
+                    <p class="text-muted small">Hãy thử điều chỉnh lại bộ lọc màu sắc, kích cỡ hoặc khoảng giá.</p>
+                    <a th:href="@{${currentUri}}" class="btn btn-dark rounded-pill px-4 mt-2">Xóa bộ lọc</a>
+                </div>
+
+                <!-- Products Grid -->
+                <div class="row g-4" th:unless="${products == null or products.isEmpty()}">
+                    <div class="col-6 col-md-4" th:each="p : ${products}">
+                        <div class="product-card" th:attr="data-product-id=${p.id}">
+                            <div class="product-img-wrapper">
+                                <!-- Quick Size Sidebar (Dọc bên trái ảnh) -->
+                                <div class="card-size-sidebar" title="Chọn size để thêm nhanh vào giỏ hàng">
+                                    <span class="size-sidebar-label">SIZE</span>
+                                    <button type="button" 
+                                            class="btn-quick-size" 
+                                            th:each="s : ${p.distinctSizes}" 
+                                            th:data-size-id="${s.id}" 
+                                            th:data-size-name="${s.name}" 
+                                            th:text="${s.name}"
+                                            th:title="'Thêm nhanh size ' + ${s.name}">
+                                        M
+                                    </button>
+                                </div>
+                                <span class="badge-discount" th:if="${p.discountPercent > 0}">
+                                    -<span th:text="${p.discountPercent}">15</span>%
+                                </span>
+                                <span class="badge-discount bg-dark" th:unless="${p.discountPercent > 0}">
+                                    HOT
+                                </span>
+
+                                <span class="badge-material" th:text="${p.material != null ? p.material : 'Cotton Compact'}">
+                                    Cotton Compact
+                                </span>
+
+                                <a th:href="@{'/san-pham/' + ${p.slug}}">
+                                    <img class="card-product-img" th:src="${p.thumbnailUrl}" onerror="this.onerror=null;this.src='/images/products/ao-thun-compact-den-1.jpg';" th:alt="${p.name}" loading="lazy">
+                                </a>
+
+                                <div class="card-actions">
+                                    <a th:href="@{'/san-pham/' + ${p.slug}}" class="btn-action-round" title="Xem nhanh">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <button type="button" class="btn-action-round btn-wishlist" th:attr="data-product-id=${p.id}" title="Thêm vào yêu thích">
+                                        <i class="bi bi-heart"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="swatch-group">
+                                    <span class="color-dot" style="background-color: #111111;"></span>
+                                    <span class="color-dot" style="background-color: #ffffff;"></span>
+                                    <span class="color-dot" style="background-color: #1b2a4a;"></span>
+                                </div>
+
+                                <a th:href="@{'/san-pham/' + ${p.slug}}" class="product-title" th:text="${p.name}">
+                                    Tên sản phẩm
+                                </a>
+
+                                <div class="d-flex align-items-baseline mb-2">
+                                    <span class="price-current" 
+                                          th:text="${#numbers.formatDecimal((p.basePrice != null ? p.basePrice : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">
+                                        299,000đ
+                                    </span>
+                                    <span class="price-original" 
+                                          th:if="${p.maxOriginalPrice != null and p.maxOriginalPrice > p.basePrice}"
+                                          th:text="${#numbers.formatDecimal((p.maxOriginalPrice != null ? p.maxOriginalPrice : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">
+                                        349,000đ
+                                    </span>
+                                </div>
+
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div class="rating-stars">
+                                        <i class="bi bi-star-fill"></i>
+                                        <span class="text-dark fw-bold small ms-1" th:text="${p.ratingAvg}">4.9</span>
+                                        <span class="text-muted small">(<span th:text="${p.reviewCount}">120</span>)</span>
+                                    </div>
+                                    <span class="sold-badge">
+                                        Đã bán <strong th:text="${p.soldCount}">1.2k</strong>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-light py-5 mt-5">
+        <div class="container text-center small text-muted">
+            <h5 class="text-white fw-bold mb-3">COOLMATE PLATFORM</h5>
+            <p>Giải pháp mua sắm thời trang nam tiện lợi, hiện đại chuẩn thương hiệu Coolmate.</p>
+            <div>© 2026 Coolmate. All rights reserved.</div>
+        </div>
+    </footer>
+
+    <!-- Scroll-to-Top Button -->
+    <button type="button" class="btn-scroll-top" onclick="window.scrollTo({top:0, behavior:'smooth'})" title="Lên đầu trang">
+        <i class="bi bi-arrow-up"></i>
+    </button>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        const IS_LOGGED_IN = /*[[${currentUser != null}]]*/ false;
+        /*]]>*/
+    </script>
+    <script>
+        if (typeof AOS !== 'undefined') {
+            AOS.init({ duration: 600, once: true });
+        }
+
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.btn-wishlist');
+            if (!btn) return;
+            e.preventDefault();
+
+            if (!IS_LOGGED_IN) {
+                Swal.fire({
+                    title: 'Hội Viên CoolClub',
+                    text: 'Bạn cần đăng nhập tài khoản CoolClub để lưu sản phẩm vào danh sách yêu thích.',
+                    icon: 'info',
+                    showCancelButton: true,
+                    confirmButtonText: 'Đăng Nhập Ngay',
+                    cancelButtonText: 'Để sau',
+                    confirmButtonColor: '#111827',
+                    cancelButtonColor: '#6B7280',
+                    customClass: { popup: 'rounded-4' }
+                }).then((res) => {
+                    if (res.isConfirmed) {
+                        window.location.href = '/auth/login?required=wishlist';
+                    }
+                });
+                return;
+            }
+
+            const productId = btn.getAttribute('data-product-id');
+            if (!productId) return;
+
+            fetch('/api/wishlist/toggle/' + productId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                const icon = btn.querySelector('i');
+                if (data.liked) {
+                    if (icon) icon.className = 'bi bi-heart-fill text-danger';
+                    btn.classList.add('liked');
+                } else {
+                    if (icon) icon.className = 'bi bi-heart';
+                    btn.classList.remove('liked');
+                }
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: data.liked ? 'success' : 'info',
+                    title: data.message,
+                    showConfirmButton: false,
+                    timer: 2000,
+                    timerProgressBar: true
+                });
+            })
+            .catch(err => {
+                console.log('Wishlist status:', err);
+            });
+        });
+
+        // Chặn người dùng chưa đăng nhập khi bấm vào giỏ hàng
+        document.querySelectorAll('a[href*="/gio-hang"], .cart-link-guest').forEach(el => {
+            el.addEventListener('click', function(e) {
+                if (!IS_LOGGED_IN) {
+                    e.preventDefault();
+                    Swal.fire({
+                        title: 'Giỏ Hàng CoolClub',
+                        text: 'Bạn cần đăng nhập tài khoản CoolClub để xem và quản lý giỏ hàng.',
+                        icon: 'info',
+                        showCancelButton: true,
+                        confirmButtonText: 'Đăng Nhập Ngay',
+                        cancelButtonText: 'Để sau',
+                        confirmButtonColor: '#111827',
+                        cancelButtonColor: '#6B7280',
+                        customClass: { popup: 'rounded-4' }
+                    }).then((res) => {
+                        if (res.isConfirmed) {
+                            window.location.href = '/auth/login?required=cart';
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

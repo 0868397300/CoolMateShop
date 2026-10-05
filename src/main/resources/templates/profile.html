@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thông Tin Của Tôi - Coolmate</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        :root {
+            --cm-blue: #2f5acf;
+            --cm-black: #111827;
+            --cm-gray-bg: #f8fafc;
+        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--cm-gray-bg); color: var(--cm-black); }
+        .navbar-brand { font-weight: 800; font-size: 1.6rem; letter-spacing: -0.5px; }
+        .card-custom { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
+        .nav-pills-custom .nav-link { color: #64748b; font-weight: 600; padding: 12px 20px; border-radius: 12px; margin-bottom: 6px; transition: all 0.2s; }
+        .nav-pills-custom .nav-link.active, .nav-pills-custom .nav-link:hover { color: #fff; background-color: var(--cm-blue); }
+        .badge-tier-NEW { background-color: #94a3b8; color: #fff; }
+        .badge-tier-SILVER { background-color: #cbd5e1; color: #334155; }
+        .badge-tier-GOLD { background-color: #f59e0b; color: #fff; }
+        .badge-tier-PLATINUM { background-color: #8b5cf6; color: #fff; }
+    </style>
+</head>
+<body>
+    <!-- Header Minimal -->
+    <header class="bg-white border-bottom py-3 sticky-top">
+        <div class="container d-flex justify-content-between align-items-center">
+            <a class="navbar-brand text-dark text-decoration-none" th:href="@{/}">
+                COOLMATE<span class="text-primary">.</span>
+            </a>
+            <div class="d-flex align-items-center gap-3">
+                <a th:href="@{/}" class="btn btn-sm btn-outline-secondary rounded-pill px-3"><i class="bi bi-house me-1"></i>Trang chủ</a>
+                <a th:href="@{/gio-hang}" class="btn btn-sm btn-outline-primary rounded-pill px-3"><i class="bi bi-bag me-1"></i>Giỏ hàng</a>
+                <form th:action="@{/auth/logout}" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3"><i class="bi bi-box-arrow-right me-1"></i>Đăng xuất</button>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <div class="container py-5">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a th:href="@{/}" class="text-decoration-none">Trang chủ</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Thông tin của tôi</li>
+            </ol>
+        </nav>
+
+        <div class="row g-4">
+            <!-- Left Column: User Summary & Navigation -->
+            <div class="col-lg-4">
+                <div class="card-custom p-4 text-center mb-4">
+                    <div class="mx-auto mb-3 d-flex align-items-center justify-content-center bg-primary bg-opacity-10 text-primary rounded-circle" style="width: 80px; height: 80px;">
+                        <i class="bi bi-person-circle fs-1"></i>
+                    </div>
+                    <h5 class="fw-bold mb-1" th:text="${user?.fullName != null ? user.fullName : 'Hội viên Coolmate'}">Họ Tên</h5>
+                    <p class="text-muted small mb-2" th:text="${user?.email}">email@example.com</p>
+                    <div>
+                        <span class="badge rounded-pill px-3 py-2 fw-bold" 
+                              th:classappend="'badge-tier-' + ${user?.membershipTier != null ? user.membershipTier : 'NEW'}">
+                            <i class="bi bi-gem me-1"></i>Hạng: <span th:text="${user?.membershipTier != null ? user.membershipTier : 'NEW'}">NEW</span>
+                        </span>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <div class="row text-center g-2">
+                        <div class="col-6 border-end">
+                            <small class="text-muted d-block mb-1">Ví CoolCash</small>
+                            <span class="fw-bold text-primary fs-6" 
+                                  th:text="${#numbers.formatDecimal(user?.coolcashBalance != null ? user.coolcashBalance : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">0đ</span>
+                            <div class="mt-1"><a th:href="@{/vi-coolcash}" class="small text-decoration-none">Lịch sử ví &rarr;</a></div>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block mb-1">Tổng chi tiêu</small>
+                            <span class="fw-bold text-dark fs-6" 
+                                  th:text="${#numbers.formatDecimal(user?.totalSpent != null ? user.totalSpent : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">0đ</span>
+                            <div class="mt-1"><a th:href="@{/coolclub}" class="small text-decoration-none">Ưu đãi VIP &rarr;</a></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Nav Menu -->
+                <div class="card-custom p-3">
+                    <div class="nav flex-column nav-pills nav-pills-custom" id="v-pills-tab" role="tablist">
+                        <button class="nav-link active text-start" id="tab-info-btn" data-bs-toggle="pill" data-bs-target="#tab-info" type="button" role="tab">
+                            <i class="bi bi-person-gear me-2"></i>Thông tin cá nhân
+                        </button>
+                        <button class="nav-link text-start" id="tab-address-btn" data-bs-toggle="pill" data-bs-target="#tab-address" type="button" role="tab">
+                            <i class="bi bi-geo-alt me-2"></i>Sổ địa chỉ nhận hàng
+                        </button>
+                        <button class="nav-link text-start" id="tab-orders-btn" data-bs-toggle="pill" data-bs-target="#tab-orders" type="button" role="tab">
+                            <i class="bi bi-bag-check me-2"></i>Đơn hàng gần đây
+                        </button>
+                        <button class="nav-link text-start" id="tab-password-btn" data-bs-toggle="pill" data-bs-target="#tab-password" type="button" role="tab">
+                            <i class="bi bi-shield-lock me-2"></i>Đổi mật khẩu
+                        </button>
+                        <a th:href="@{/admin/dashboard}" sec:authorize="hasAnyRole('ADMIN', 'STAFF')" class="nav-link text-start text-danger fw-bold">
+                            <i class="bi bi-speedometer2 me-2"></i>Quản trị hệ thống (Admin)
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Tab Contents -->
+            <div class="col-lg-8">
+                <div class="tab-content" id="v-pills-tabContent">
+                    <!-- Tab 1: Profile Info -->
+                    <div class="tab-pane fade show active" id="tab-info" role="tabpanel">
+                        <div class="card-custom p-4">
+                            <h4 class="fw-bold mb-1"><i class="bi bi-person-lines-fill text-primary me-2"></i>Thông Tin Cá Nhân</h4>
+                            <p class="text-muted small mb-4">Cập nhật thông tin chi tiết để Coolmate gợi ý kích cỡ trang phục phù hợp nhất cho bạn.</p>
+
+                            <form th:action="@{/thong-tin-tai-khoan/cap-nhat}" method="post">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold">Họ và tên <span class="text-danger">*</span></label>
+                                        <input type="text" name="fullName" class="form-control" th:value="${user?.fullName}" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold">Địa chỉ Email (Đăng nhập)</label>
+                                        <input type="email" class="form-control bg-light" th:value="${user?.email}" readonly disabled>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold">Số điện thoại</label>
+                                        <input type="tel" name="phone" class="form-control" th:value="${user?.phone}" placeholder="0901234567">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold">Giới tính</label>
+                                        <select name="gender" class="form-select">
+                                            <option value="Nam" th:selected="${user?.gender == 'Nam'}">Nam</option>
+                                            <option value="Nữ" th:selected="${user?.gender == 'Nữ'}">Nữ</option>
+                                            <option value="Khác" th:selected="${user?.gender == 'Khác'}">Khác</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold">Ngày sinh</label>
+                                        <input type="date" name="birthDate" class="form-control" th:value="${user?.birthDate}">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small fw-bold">Chiều cao (cm)</label>
+                                        <input type="number" name="heightCm" class="form-control" th:value="${user?.heightCm}" placeholder="175" min="120" max="220">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small fw-bold">Cân nặng (kg)</label>
+                                        <input type="number" name="weightKg" class="form-control" th:value="${user?.weightKg}" placeholder="70" min="30" max="150">
+                                    </div>
+                                </div>
+                                <div class="mt-4 text-end">
+                                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                                        <i class="bi bi-check2-circle me-1"></i>Lưu Thay Đổi
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Tab 2: Addresses -->
+                    <div class="tab-pane fade" id="tab-address" role="tabpanel">
+                        <div class="card-custom p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div>
+                                    <h4 class="fw-bold mb-1"><i class="bi bi-geo-alt-fill text-primary me-2"></i>Sổ Địa Chỉ Nhận Hàng</h4>
+                                    <p class="text-muted small mb-0">Quản lý các địa chỉ giao hàng để đặt hàng nhanh chóng hơn.</p>
+                                </div>
+                                <button class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold" data-bs-toggle="collapse" data-bs-target="#addAddressCollapse">
+                                    <i class="bi bi-plus-lg me-1"></i>Thêm địa chỉ mới
+                                </button>
+                            </div>
+
+                            <!-- Collapse Add Address Form -->
+                            <div class="collapse mb-4" id="addAddressCollapse">
+                                <div class="p-4 rounded-3 border bg-light">
+                                    <h6 class="fw-bold mb-3 text-primary">Thêm Địa Chỉ Giao Hàng Mới</h6>
+                                    <form th:action="@{/thong-tin-tai-khoan/dia-chi/them}" method="post">
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-bold">Tên người nhận <span class="text-danger">*</span></label>
+                                                <input type="text" name="recipientName" class="form-control" required>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-bold">Số điện thoại nhận <span class="text-danger">*</span></label>
+                                                <input type="tel" name="recipientPhone" class="form-control" required>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-bold">Tỉnh / Thành phố <span class="text-danger">*</span></label>
+                                                <input type="text" name="provinceName" class="form-control" placeholder="TP. Hồ Chí Minh" required>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-bold">Quận / Huyện <span class="text-danger">*</span></label>
+                                                <input type="text" name="districtName" class="form-control" placeholder="Quận 1" required>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-bold">Phường / Xã <span class="text-danger">*</span></label>
+                                                <input type="text" name="wardName" class="form-control" placeholder="Phường Bến Nghé" required>
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label small fw-bold">Địa chỉ chi tiết (Số nhà, tên đường) <span class="text-danger">*</span></label>
+                                                <input type="text" name="streetAddress" class="form-control" placeholder="Số 123 Đường Nguyễn Huệ" required>
+                                            </div>
+                                            <div class="col-12">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" name="isDefault" value="true" id="defaultAddressCheck">
+                                                    <label class="form-check-label small fw-semibold" for="defaultAddressCheck">
+                                                        Đặt làm địa chỉ giao hàng mặc định
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mt-3 text-end">
+                                            <button type="submit" class="btn btn-primary btn-sm rounded-pill px-4 fw-bold">Lưu địa chỉ</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <!-- Address List -->
+                            <div th:if="${addresses == null or addresses.isEmpty()}" class="text-center py-5 text-muted">
+                                <i class="bi bi-geo-alt display-4 text-muted"></i>
+                                <p class="mt-2 mb-0">Bạn chưa lưu địa chỉ nhận hàng nào.</p>
+                            </div>
+
+                            <div th:each="addr : ${addresses}" class="p-3 mb-3 border rounded-3 bg-white d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <strong th:text="${addr.recipientName}">Họ Tên</strong>
+                                        <span class="badge bg-secondary" th:text="${addr.recipientPhone}">0901234567</span>
+                                        <span th:if="${addr.isDefault}" class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Mặc định</span>
+                                    </div>
+                                    <p class="mb-0 small text-muted" th:text="${addr.streetAddress + ', ' + addr.wardName + ', ' + addr.districtName + ', ' + addr.provinceName}">
+                                        Địa chỉ cụ thể
+                                    </p>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <form th:unless="${addr.isDefault}" th:action="@{'/thong-tin-tai-khoan/dia-chi/mac-dinh/' + ${addr.id}}" method="post">
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary rounded-pill">Đặt mặc định</button>
+                                    </form>
+                                    <form th:action="@{'/thong-tin-tai-khoan/dia-chi/xoa/' + ${addr.id}}" method="post" onsubmit="return confirm('Bạn có chắc muốn xóa địa chỉ này?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 3: Recent Orders -->
+                    <div class="tab-pane fade" id="tab-orders" role="tabpanel">
+                        <div class="card-custom p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div>
+                                    <h4 class="fw-bold mb-1"><i class="bi bi-receipt-cutoff text-primary me-2"></i>Đơn Hàng Gần Đây</h4>
+                                    <p class="text-muted small mb-0">Theo dõi tiến độ vận chuyển và trạng thái đơn hàng của bạn.</p>
+                                </div>
+                                <a th:href="@{/don-hang}" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold">Xem tất cả &rarr;</a>
+                            </div>
+
+                            <div th:if="${recentOrders == null or recentOrders.isEmpty()}" class="text-center py-5 text-muted">
+                                <i class="bi bi-bag-x display-4 text-muted"></i>
+                                <p class="mt-2 mb-0">Bạn chưa có đơn hàng nào.</p>
+                                <a th:href="@{/}" class="btn btn-primary btn-sm rounded-pill px-4 mt-3">Mua sắm ngay</a>
+                            </div>
+
+                            <div th:each="order : ${recentOrders}" class="p-3 mb-3 border rounded-3 bg-white">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div>
+                                        <strong class="text-primary" th:text="'#' + ${order.orderCode}">#CM123456</strong>
+                                        <small class="text-muted ms-2" th:text="${order.createdAt}">2026-10-01</small>
+                                    </div>
+                                    <span class="badge bg-primary px-3 py-1 rounded-pill" th:text="${order.orderStatus}">DELIVERED</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center small">
+                                    <span class="text-muted">Tổng thanh toán: <strong class="text-dark" th:text="${#numbers.formatDecimal(order.finalAmount != null ? order.finalAmount : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">0đ</strong></span>
+                                    <a th:href="@{'/don-hang/' + ${order.id}}" class="text-decoration-none fw-bold">Chi tiết đơn hàng &rarr;</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 4: Password Change -->
+                    <div class="tab-pane fade" id="tab-password" role="tabpanel">
+                        <div class="card-custom p-4">
+                            <h4 class="fw-bold mb-1"><i class="bi bi-key-fill text-primary me-2"></i>Đổi Mật Khẩu</h4>
+                            <p class="text-muted small mb-4">Để bảo mật tài khoản, vui lòng không chia sẻ mật khẩu cho người khác.</p>
+
+                            <form th:action="@{/thong-tin-tai-khoan/doi-mat-khau}" method="post">
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Mật khẩu hiện tại <span class="text-danger">*</span></label>
+                                    <input type="password" name="oldPassword" class="form-control" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold">Mật khẩu mới (Tối thiểu 6 ký tự) <span class="text-danger">*</span></label>
+                                    <input type="password" name="newPassword" class="form-control" minlength="6" required>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label small fw-bold">Xác nhận mật khẩu mới <span class="text-danger">*</span></label>
+                                    <input type="password" name="confirmPassword" class="form-control" minlength="6" required>
+                                </div>
+                                <div class="text-end">
+                                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Đổi Mật Khẩu</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SweetAlert2 Toast Feedback -->
+    <script th:if="${successMessage}">
+        Swal.fire({
+            icon: 'success',
+            title: 'Thành công!',
+            text: '[[${successMessage}]]',
+            confirmButtonColor: '#2f5acf',
+            timer: 3000
+        });
+    </script>
+    <script th:if="${errorMessage}">
+        Swal.fire({
+            icon: 'error',
+            title: 'Thông báo',
+            text: '[[${errorMessage}]]',
+            confirmButtonColor: '#2f5acf'
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

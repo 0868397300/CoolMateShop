@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lập Phiếu Nhập Kho - Coolmate Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f1f5f9; color: #0f172a; }
+        .sidebar { width: 260px; min-height: 100vh; background: #0f172a; color: #fff; position: fixed; }
+        .sidebar a { color: #94a3b8; text-decoration: none; display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-radius: 8px; font-weight: 500; }
+        .sidebar a:hover, .sidebar a.active { color: #fff; background: #1e293b; }
+        .main-wrapper { margin-left: 260px; padding: 30px; }
+        .card-custom { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; }
+        .form-control, .form-select { border-radius: 10px; border: 1px solid #cbd5e1; }
+        .form-control:focus, .form-select:focus { border-color: #2f5acf; box-shadow: 0 0 0 3px rgba(47, 90, 207, 0.15); }
+        .sku-select-box { min-width: 280px; }
+    </style>
+</head>
+<body>
+    <div class="d-flex">
+        <!-- Sidebar -->
+        <div class="sidebar p-3">
+            <h4 class="fw-bold px-3 py-2 text-white mb-4">COOLMATE<span class="text-primary">.</span> <span class="badge bg-primary fs-6">ADMIN</span></h4>
+            <div class="d-flex flex-column gap-1">
+                <a th:href="@{/admin/dashboard}" class=""><i class="bi bi-speedometer2"></i> Tổng quan tài chính</a>
+                <a th:href="@{/admin/don-hang}" class=""><i class="bi bi-receipt"></i> Quản lý đơn hàng</a>
+                <a th:href="@{/admin/san-pham}" class=""><i class="bi bi-box-seam"></i> Quản lý sản phẩm</a>
+                <a th:href="@{/admin/nhap-kho}" class="active"><i class="bi bi-box-arrow-in-down"></i> Quản lý nhập kho</a>
+                <a th:href="@{/admin/doi-tra}" class=""><i class="bi bi-arrow-repeat"></i> Đổi trả 60 ngày</a>
+                <a th:href="@{/admin/khach-hang}" class=""><i class="bi bi-people"></i> Hội viên &amp; Khách hàng</a>
+                <a th:href="@{/admin/khuyen-mai}" class=""><i class="bi bi-ticket-perforated"></i> Khuyến mãi &amp; Combo</a>
+                <a th:href="@{/admin/danh-gia}" class=""><i class="bi bi-star"></i> Đánh giá &amp; Fit Size</a>
+                <a th:href="@{/}" target="_blank" class="mt-4 text-warning"><i class="bi bi-shop"></i> Xem Website</a>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-wrapper flex-grow-1">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <a th:href="@{/admin/nhap-kho}" class="text-muted small text-decoration-none mb-1 d-inline-block">
+                        <i class="bi bi-arrow-left me-1"></i> Quay lại danh sách phiếu nhập
+                    </a>
+                    <h3 class="fw-bold mb-0">Lập Phiếu Nhập Kho Mới</h3>
+                </div>
+            </div>
+
+            <!-- Alert messages -->
+            <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show rounded-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i><span th:text="${errorMessage}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <form th:action="@{/admin/nhap-kho/luu}" method="post" id="receiptForm">
+                <!-- Thông tin chung -->
+                <div class="card card-custom p-4 shadow-sm mb-4">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-info-circle text-primary me-2"></i> 1. Thông Tin Chứng Từ Nhập Kho</h5>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Mã Phiếu Nhập <span class="text-danger">*</span></label>
+                            <input type="text" name="receiptCode" class="form-control" th:value="${defaultCode}" required>
+                            <div class="form-text small">Hệ thống tự động sinh mã theo ngày giờ hoặc nhập mã tùy chỉnh.</div>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold">Nhà Cung Cấp / Xưởng May <span class="text-danger">*</span></label>
+                            <input type="text" name="supplierName" id="supplierInput" list="supplierList" class="form-control" placeholder="Nhập tên xưởng may hoặc chọn gợi ý..." required>
+                            <datalist id="supplierList">
+                                <option value="Công ty Cổ phần Dệt may Thành Công">
+                                <option value="Xưởng may Thể thao Tân Bình Pro">
+                                <option value="Công ty TNHH Phụ kiện Dệt may Nam Định">
+                                <option value="Xưởng may Thời trang D2C Hưng Yên">
+                            </datalist>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">Ngày Tạo</label>
+                            <input type="text" class="form-control bg-light" th:value="${#temporals.format(#temporals.createNow(), 'dd/MM/yyyy HH:mm')}" readonly>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Ghi Chú Đợt Nhập Hàng</label>
+                            <input type="text" name="note" class="form-control" placeholder="Ví dụ: Nhập bổ sung mùa Thu Đông, nhập đợt 2 theo hợp đồng...">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Danh sách mặt hàng -->
+                <div class="card card-custom p-4 shadow-sm mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold mb-0"><i class="bi bi-box-seam text-primary me-2"></i> 2. Danh Sách Biến Thể Sản Phẩm (SKU) Nhập Kho</h5>
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="addRow()">
+                            <i class="bi bi-plus-lg me-1"></i> Thêm Dòng Sản Phẩm
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered align-middle" id="itemsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 40%;">Chọn Biến Thể Sản Phẩm (Màu & Size)</th>
+                                    <th style="width: 15%;">Tồn Kho Hiện Tại</th>
+                                    <th style="width: 15%;">Số Lượng Nhập <span class="text-danger">*</span></th>
+                                    <th style="width: 15%;">Đơn Giá Vốn (đ) <span class="text-danger">*</span></th>
+                                    <th style="width: 15%;">Thành Tiền</th>
+                                    <th style="width: 5%;" class="text-center">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody">
+                                <!-- Dynamic rows inserted by JavaScript -->
+                            </tbody>
+                            <tfoot class="table-light fw-bold">
+                                <tr>
+                                    <td colspan="2" class="text-end">TỔNG CỘNG TOÀN PHIẾU:</td>
+                                    <td class="text-primary" id="totalQtySum">0</td>
+                                    <td></td>
+                                    <td class="text-danger fs-5" id="totalAmountSum">0đ</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Nút Submit -->
+                <div class="d-flex justify-content-end gap-3 mb-5">
+                    <a th:href="@{/admin/nhap-kho}" class="btn btn-outline-secondary rounded-pill px-4">Hủy bỏ</a>
+                    <button type="submit" class="btn btn-primary rounded-pill px-5 fw-bold shadow-sm">
+                        <i class="bi bi-check-lg me-2"></i> Hoàn Tất & Nhập Kho
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Hidden Variant Options Template (Zero-Jackson DOM Binding) -->
+    <select id="variantOptionsTemplate" style="display: none;">
+        <option value="">-- Chọn sản phẩm & biến thể SKU --</option>
+        <option th:each="v : ${variants}"
+                th:value="${v.id}"
+                th:data-sku="${v.sku}"
+                th:data-stock="${v.stockQuantity}"
+                th:data-cost="${v.importPrice}"
+                th:selected="${prefillSku != null and prefillSku == v.sku}"
+                th:text="${(v.product != null ? v.product.name : 'Sản phẩm') + ' - [' + (v.color != null ? v.color.name : '') + ' / Size ' + (v.size != null ? v.size.name : '') + '] (' + v.sku + ')'}">
+        </option>
+    </select>
+
+    <script>
+        let rowCount = 0;
+
+        function addRow(selectedVariantId = null) {
+            rowCount++;
+            const tbody = document.getElementById("tableBody");
+            const tr = document.createElement("tr");
+            tr.id = "row_" + rowCount;
+
+            let optionsHtml = document.getElementById("variantOptionsTemplate").innerHTML;
+
+            tr.innerHTML = `
+                <td>
+                    <select name="variantId[]" class="form-select sku-select" onchange="onVariantChange(this, ${rowCount})" required>
+                        ${optionsHtml}
+                    </select>
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-light text-dark border px-2 py-1 current-stock" id="stock_${rowCount}">-</span>
+                </td>
+                <td>
+                    <input type="number" name="quantity[]" class="form-control text-center item-qty" value="50" min="1" oninput="calculateTotal()" required>
+                </td>
+                <td>
+                    <input type="number" name="importPrice[]" class="form-control text-end item-cost" value="0" min="0" step="1000" oninput="calculateTotal()" required>
+                </td>
+                <td class="text-end fw-bold text-danger item-total" id="total_${rowCount}">0đ</td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="removeRow(${rowCount})">
+                        <i class="bi bi-trash3-fill"></i>
+                    </button>
+                </td>
+            `;
+
+            tbody.appendChild(tr);
+
+            // Trigger change for preselected
+            const selectEl = tr.querySelector('.sku-select');
+            if (selectEl.value) {
+                onVariantChange(selectEl, rowCount);
+            } else {
+                calculateTotal();
+            }
+        }
+
+        function onVariantChange(selectEl, rowId) {
+            const selectedOpt = selectEl.options[selectEl.selectedIndex];
+            const stockSpan = document.getElementById("stock_" + rowId);
+            const costInput = document.querySelector("#row_" + rowId + " .item-cost");
+
+            if (selectedOpt && selectedOpt.value) {
+                const stock = selectedOpt.getAttribute("data-stock") || 0;
+                const cost = selectedOpt.getAttribute("data-cost") || 0;
+
+                stockSpan.textContent = stock + " cái";
+                if (!costInput.value || costInput.value === "0") {
+                    costInput.value = cost;
+                }
+            } else {
+                stockSpan.textContent = "-";
+            }
+            calculateTotal();
+        }
+
+        function removeRow(rowId) {
+            const row = document.getElementById("row_" + rowId);
+            if (row) {
+                row.remove();
+                calculateTotal();
+            }
+        }
+
+        function calculateTotal() {
+            let totalQty = 0;
+            let totalAmount = 0;
+
+            const rows = document.querySelectorAll("#tableBody tr");
+            rows.forEach(tr => {
+                const qtyInput = tr.querySelector(".item-qty");
+                const costInput = tr.querySelector(".item-cost");
+                const totalCell = tr.querySelector(".item-total");
+
+                const qty = parseInt(qtyInput.value) || 0;
+                const cost = parseFloat(costInput.value) || 0;
+                const lineTotal = qty * cost;
+
+                totalQty += qty;
+                totalAmount += lineTotal;
+
+                if (totalCell) {
+                    totalCell.textContent = lineTotal.toLocaleString('vi-VN') + "đ";
+                }
+            });
+
+            document.getElementById("totalQtySum").textContent = totalQty.toLocaleString('vi-VN');
+            document.getElementById("totalAmountSum").textContent = totalAmount.toLocaleString('vi-VN') + "đ";
+        }
+
+        // Initialize with 2 rows on page load
+        document.addEventListener("DOMContentLoaded", function() {
+            if (allVariants.length > 0) {
+                addRow();
+                if (!prefillSku && allVariants.length > 1) {
+                    addRow();
+                }
+            }
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
