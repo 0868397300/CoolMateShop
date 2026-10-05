@@ -256,4 +256,58 @@ public class OrderService {
 
         orderRepository.save(order);
     }
+
+    /**
+     * Chuyển đổi trạng thái đơn hàng theo Order State Machine chuẩn (Phase 11)
+     */
+    @Transactional
+    public void transitionStatus(Long orderId, String targetStatus, User currentUser) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomException("Không tìm thấy đơn hàng #" + orderId));
+
+        String currentStatus = order.getOrderStatus() != null ? order.getOrderStatus().toUpperCase() : "PENDING";
+        String next = targetStatus != null ? targetStatus.toUpperCase() : currentStatus;
+
+        if (currentStatus.equals(next)) {
+            return;
+        }
+
+        if ("COMPLETED".equals(currentStatus) && !"COMPLETED".equals(next)) {
+            throw new CustomException("Đơn hàng đã hoàn tất (COMPLETED), không thể quay lại trạng thái trước.");
+        }
+
+        if ("CANCELLED".equals(currentStatus)) {
+            throw new CustomException("Đơn hàng đã bị hủy, không thể kích hoạt lại.");
+        }
+
+        if ("CANCELLED".equals(next)) {
+            cancelOrder(orderId, currentUser, "Hủy đơn hàng bởi người dùng/quản trị viên");
+            return;
+        }
+
+        if ("COMPLETED".equals(next)) {
+            completeOrder(orderId);
+            return;
+        }
+
+        if ("CONFIRMED".equals(next)) {
+            order.setOrderStatus("CONFIRMED");
+            notificationService.notifyOrderConfirmed(order);
+        } else if ("SHIPPING".equals(next)) {
+            order.setOrderStatus("SHIPPING");
+            notificationService.notifyOrderShipping(order);
+        } else if ("DELIVERED".equals(next)) {
+            order.setOrderStatus("DELIVERED");
+            if (order.getDeliveredAt() == null) {
+                order.setDeliveredAt(LocalDateTime.now());
+            }
+            notificationService.notifyOrderDelivered(order);
+        } else {
+            order.setOrderStatus(next);
+        }
+
+        order.setUpdatedAt(LocalDateTime.now());
+        orderRepository.save(order);
+    }
+
 }

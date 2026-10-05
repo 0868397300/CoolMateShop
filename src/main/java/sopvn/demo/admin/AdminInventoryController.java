@@ -91,7 +91,7 @@ public class AdminInventoryController {
             }
             req.setItems(items);
 
-            InventoryReceipt created = inventoryService.createReceipt(req, user.getId());
+            InventoryReceipt created = inventoryService.createReceipt(req, user);
             redirectAttributes.addFlashAttribute("successMessage", 
                     "Phiếu nhập kho #" + created.getReceiptCode() + " đã được tạo ở trạng thái SUBMITTED, chờ Admin phê duyệt.");
         } catch (Exception e) {

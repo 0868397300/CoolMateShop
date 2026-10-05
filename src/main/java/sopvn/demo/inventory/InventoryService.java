@@ -62,7 +62,8 @@ public class InventoryService {
         receipt.setSupplierName(request.getSupplierName().trim());
         receipt.setCreatedBy(currentUser);
         receipt.setNote(request.getNote());
-        receipt.setStatus("COMPLETED");
+        // Phase 6: Trạng thái ban đầu khi tạo phiếu là SUBMITTED, chỉ duyệt (APPROVED) mới tăng tồn kho
+        receipt.setStatus("SUBMITTED");
         receipt.setCreatedAt(LocalDateTime.now());
 
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -90,11 +91,7 @@ public class InventoryService {
             receiptItem.setTotalPrice(itemTotal);
 
             receipt.getItems().add(receiptItem);
-
-            // Cập nhật tăng số lượng tồn kho và cập nhật giá vốn mới nhất vào SKU
-            variant.setStockQuantity(variant.getStockQuantity() + itemReq.getQuantity());
-            variant.setImportPrice(itemReq.getImportPrice());
-            variantRepository.save(variant);
+            // Không tăng stock hay sửa import price tại đây - StockService.applyInventoryReceipt() chịu trách nhiệm khi Admin duyệt
         }
 
         receipt.setTotalAmount(totalAmount);
@@ -103,40 +100,26 @@ public class InventoryService {
 
     public InventoryStatsDTO getInventoryStats() {
         InventoryStatsDTO stats = new InventoryStatsDTO();
-        List<InventoryReceipt> allReceipts = receiptRepository.findAll();
-        stats.setTotalReceipts(allReceipts.size());
+        List<ProductVariant> variants = variantRepository.findAll();
 
-        BigDecimal spentMonth = BigDecimal.ZERO;
-        long totalUnits = 0;
-        LocalDateTime startOfMonth = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
+        int totalStock = 0;
+        BigDecimal totalValue = BigDecimal.ZERO;
+        int lowStockCount = 0;
 
-        for (InventoryReceipt r : allReceipts) {
-            if (r.getCreatedAt() != null && r.getCreatedAt().isAfter(startOfMonth)) {
-                spentMonth = spentMonth.add(r.getTotalAmount());
-            }
-            if (r.getItems() != null) {
-                for (InventoryReceiptItem it : r.getItems()) {
-                    totalUnits += it.getQuantity();
-                }
-            }
-        }
-        stats.setTotalSpentThisMonth(spentMonth);
-        stats.setTotalUnitsImported(totalUnits);
-
-        // Tính tổng giá trị hàng tồn kho hiện tại: Σ (tồn kho * giá vốn)
-        BigDecimal inventoryValue = BigDecimal.ZERO;
-        List<ProductVariant> allVariants = variantRepository.findByIsActiveTrue();
-        for (ProductVariant v : allVariants) {
+        for (ProductVariant v : variants) {
+            int qty = v.getStockQuantity() != null ? v.getStockQuantity() : 0;
+            totalStock += qty;
             BigDecimal cost = v.getImportPrice() != null ? v.getImportPrice() : BigDecimal.ZERO;
-            int stock = v.getStockQuantity() != null ? v.getStockQuantity() : 0;
-            inventoryValue = inventoryValue.add(cost.multiply(BigDecimal.valueOf(stock)));
+            totalValue = totalValue.add(cost.multiply(BigDecimal.valueOf(qty)));
+            if (qty <= 5) {
+                lowStockCount++;
+            }
         }
-        stats.setTotalInventoryValue(inventoryValue);
 
-        // Cảnh báo tồn kho thấp (<= 40 sản phẩm)
-        List<ProductVariant> lowStock = variantRepository.findByStockQuantityLessThanEqualAndIsActiveTrueOrderByStockQuantityAsc(40);
-        stats.setLowStockVariants(lowStock);
-
+        stats.setTotalSkus(variants.size());
+        stats.setTotalStockQuantity(totalStock);
+        stats.setTotalInventoryValue(totalValue);
+        stats.setLowStockVariantCount(lowStockCount);
         return stats;
     }
 }
