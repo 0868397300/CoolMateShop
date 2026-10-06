@@ -1,5 +1,6 @@
 package sopvn.demo.controller;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -24,6 +25,9 @@ public class ForgotPasswordController {
     private final PasswordResetTokenRepository tokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final NotificationService notificationService;
+
+    @Value("${app.base-url:http://localhost:8080}")
+    private String baseUrl;
 
     public ForgotPasswordController(UserRepository userRepository,
                                     PasswordResetTokenRepository tokenRepository,
@@ -53,7 +57,8 @@ public class ForgotPasswordController {
             PasswordResetToken resetToken = new PasswordResetToken(token, user, expiry);
             tokenRepository.save(resetToken);
 
-            String resetUrl = "http://localhost:8080/auth/reset-password?token=" + token;
+            // LỖI 10 FIX: Sử dụng baseUrl cấu hình
+            String resetUrl = baseUrl + "/auth/reset-password?token=" + token;
             notificationService.notifyPasswordReset(user, resetUrl);
         }
 

@@ -34,12 +34,11 @@ public class CoolCashService {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) return;
         if (user == null || order == null) return;
 
-        // Idempotency: Kiểm tra nếu đơn này đã được nhận hoàn tiền rồi thì không tạo lại
+        String idempotencyKey = "ORDER_CASHBACK:" + order.getId();
         List<CoolCashTransaction> existing = coolCashTransactionRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
         for (CoolCashTransaction tx : existing) {
-            if ("EARN_ORDER".equalsIgnoreCase(tx.getTransactionType()) && 
-                tx.getOrder() != null && tx.getOrder().getId().equals(order.getId())) {
-                return; // Đã nhận rồi, bỏ qua
+            if (tx.getDescription() != null && tx.getDescription().contains(idempotencyKey)) {
+                return; // Đã nhận rồi, bỏ qua không nhân đôi
             }
         }
 
@@ -53,15 +52,23 @@ public class CoolCashService {
         tx.setAmount(amount);
         tx.setTransactionType("EARN_ORDER");
         tx.setStatus("COMPLETED");
-        tx.setDescription("Hoàn tiền " + cashbackRate + "% CoolClub cho đơn hàng #" + order.getOrderCode());
+        tx.setDescription("Hoàn tiền " + cashbackRate + "% CoolClub đơn #" + order.getOrderCode() + " [" + idempotencyKey + "]");
         tx.setCreatedAt(LocalDateTime.now());
         coolCashTransactionRepository.save(tx);
     }
 
     @Transactional
-    public void spendCoolCash(User user, Order order, BigDecimal amount) {
+    public void spendCoolCash(User user, Order order, BigDecimal amount, String idempotencyKey) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) return;
         if (user == null) return;
+
+        String key = idempotencyKey != null ? idempotencyKey : ("ORDER_COOLCASH_SPEND:" + (order != null ? order.getId() : "MANUAL"));
+        List<CoolCashTransaction> existing = coolCashTransactionRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+        for (CoolCashTransaction tx : existing) {
+            if (tx.getDescription() != null && tx.getDescription().contains(key)) {
+                return; // Đã trừ rồi, bỏ qua idempotent
+            }
+        }
 
         BigDecimal current = user.getCoolcashBalance() != null ? user.getCoolcashBalance() : BigDecimal.ZERO;
         if (current.compareTo(amount) < 0) {
@@ -74,18 +81,31 @@ public class CoolCashService {
         CoolCashTransaction tx = new CoolCashTransaction();
         tx.setUser(user);
         tx.setOrder(order);
-        tx.setAmount(amount.negate()); // Số âm cho giao dịch chi tiêu
+        tx.setAmount(amount.negate());
         tx.setTransactionType("SPEND_ORDER");
         tx.setStatus("COMPLETED");
-        tx.setDescription("Thanh toán đơn hàng #" + (order != null ? order.getOrderCode() : ""));
+        tx.setDescription("Thanh toán đơn hàng #" + (order != null ? order.getOrderCode() : "") + " [" + key + "]");
         tx.setCreatedAt(LocalDateTime.now());
         coolCashTransactionRepository.save(tx);
     }
 
     @Transactional
-    public void refundCoolCash(User user, Order order, BigDecimal amount, String reason) {
+    public void spendCoolCash(User user, Order order, BigDecimal amount) {
+        spendCoolCash(user, order, amount, null);
+    }
+
+    @Transactional
+    public void refundCoolCash(User user, Order order, BigDecimal amount, String reason, String idempotencyKey) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) return;
         if (user == null) return;
+
+        String key = idempotencyKey != null ? idempotencyKey : ("ORDER_COOLCASH_REFUND:" + (order != null ? order.getId() : "MANUAL"));
+        List<CoolCashTransaction> existing = coolCashTransactionRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+        for (CoolCashTransaction tx : existing) {
+            if (tx.getDescription() != null && tx.getDescription().contains(key)) {
+                return; // Đã hoàn tiền rồi, bỏ qua
+            }
+        }
 
         BigDecimal current = user.getCoolcashBalance() != null ? user.getCoolcashBalance() : BigDecimal.ZERO;
         user.setCoolcashBalance(current.add(amount));
@@ -97,9 +117,14 @@ public class CoolCashService {
         tx.setAmount(amount);
         tx.setTransactionType("REFUND_RETURN");
         tx.setStatus("COMPLETED");
-        tx.setDescription(reason != null ? reason : "Hoàn tiền ví CoolCash");
+        tx.setDescription((reason != null ? reason : "Hoàn tiền ví CoolCash") + " [" + key + "]");
         tx.setCreatedAt(LocalDateTime.now());
         coolCashTransactionRepository.save(tx);
+    }
+
+    @Transactional
+    public void refundCoolCash(User user, Order order, BigDecimal amount, String reason) {
+        refundCoolCash(user, order, amount, reason, null);
     }
 
     @Transactional

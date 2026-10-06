@@ -142,7 +142,7 @@ BEGIN
 END
 GO
 
--- 7. Table: Promotion_Usages
+-- 7. Table: Promotion_Usages (with status RESERVED/FINALIZED/RELEASED)
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Promotion_Usages]') AND type in (N'U'))
 BEGIN
     CREATE TABLE [dbo].[Promotion_Usages] (
@@ -151,6 +151,7 @@ BEGIN
         [user_id] BIGINT NULL CONSTRAINT [FK_PromoUsages_User] FOREIGN KEY REFERENCES [dbo].[Users]([id]),
         [order_id] BIGINT NULL CONSTRAINT [FK_PromoUsages_Order] FOREIGN KEY REFERENCES [dbo].[Orders]([id]),
         [discount_amount] DECIMAL(18,2) NOT NULL DEFAULT 0,
+        [status] NVARCHAR(30) NOT NULL DEFAULT 'RESERVED',
         [used_at] DATETIME2 NOT NULL CONSTRAINT [DF_PromoUsages_UsedAt] DEFAULT SYSUTCDATETIME()
     );
 END

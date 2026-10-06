@@ -1,5 +1,7 @@
 package sopvn.demo.config;
 
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.context.annotation.Bean;
@@ -12,7 +14,6 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -27,8 +28,6 @@ import sopvn.demo.entity.User;
 import sopvn.demo.repository.UserRepository;
 
 import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Configuration
 @EnableWebSecurity
@@ -41,52 +40,50 @@ public class SecurityConfig {
         this.cartService = cartService;
     }
 
-    /**
-     * B7: Bắt buộc dùng BCryptPasswordEncoder chuẩn, loại bỏ hoàn toàn so sánh plaintext
-     */
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(10);
     }
 
     @Bean
     public UserDetailsService userDetailsService(UserRepository userRepository) {
         return email -> {
             User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new UsernameNotFoundException("Tài khoản hoặc mật khẩu không chính xác: " + email));
+                    .orElseThrow(() -> new UsernameNotFoundException("Tài khoản không tồn tại trên hệ thống: " + email));
 
             if (!Boolean.TRUE.equals(user.getIsActive())) {
-                throw new DisabledException("Tài khoản chưa được kích hoạt hoặc đã bị khóa.");
+                throw new DisabledException("Tài khoản của bạn đã bị tạm khóa. Vui lòng liên hệ bộ phận hỗ trợ khách hàng Coolmate.");
             }
 
-            List<SimpleGrantedAuthority> authorities = user.getRoles() != null
-                    ? user.getRoles().stream()
-                            .map(role -> {
-                                String r = role.getRoleName();
-                                return new SimpleGrantedAuthority(r.startsWith("ROLE_") ? r : "ROLE_" + r);
-                            })
-                            .collect(Collectors.toList())
-                    : Collections.emptyList();
+            String roleName = (user.getRole() != null && user.getRole().getName() != null)
+                    ? user.getRole().getName()
+                    : "ROLE_CUSTOMER";
+
+            if (!roleName.startsWith("ROLE_")) {
+                roleName = "ROLE_" + roleName.toUpperCase();
+            }
 
             return new org.springframework.security.core.userdetails.User(
                     user.getEmail(),
-                    user.getPasswordHash(),
-                    authorities
+                    user.getPassword(),
+                    Collections.singletonList(new SimpleGrantedAuthority(roleName))
             );
         };
     }
 
     @Bean
-    public DaoAuthenticationProvider authenticationProvider(UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
+    public DaoAuthenticationProvider authenticationProvider(UserDetailsService userDetailsService,
+                                                            PasswordEncoder passwordEncoder) {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
         authProvider.setUserDetailsService(userDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder);
+        authProvider.setHideUserNotFoundExceptions(false);
         return authProvider;
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
-        return authConfig.getAuthenticationManager();
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
     }
 
     @Bean
@@ -99,30 +96,21 @@ public class SecurityConfig {
         return (request, response, authException) -> {
             String uri = request.getRequestURI();
             String accept = request.getHeader("Accept");
-            String requestedWith = request.getHeader("X-Requested-With");
-            boolean isAjax = "XMLHttpRequest".equals(requestedWith) 
-                    || (accept != null && accept.contains("application/json"))
-                    || uri.startsWith("/api/");
 
-            if (isAjax) {
+            if (uri.startsWith("/api/") || (accept != null && accept.contains("application/json"))) {
                 response.setContentType("application/json;charset=UTF-8");
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.getWriter().write("{\"authenticated\":false,\"success\":false,\"message\":\"Bạn cần đăng nhập tài khoản CoolClub.\",\"redirectUrl\":\"/auth/login\"}");
-                return;
-            }
-
-            if (uri.startsWith("/gio-hang")) {
-                response.sendRedirect("/auth/login?required=cart");
+                response.getWriter().write("{\"success\":false,\"authenticated\":false,\"message\":\"Phiên đăng nhập đã hết hạn hoặc bạn chưa đăng nhập. Vui lòng đăng nhập để tiếp tục.\"}");
+            } else if (uri.startsWith("/admin")) {
+                response.sendRedirect("/auth/login?required=admin");
             } else if (uri.startsWith("/thanh-toan/checkout")) {
                 response.sendRedirect("/auth/login?required=checkout");
-            } else if (uri.startsWith("/don-hang")) {
-                response.sendRedirect("/auth/login?required=order");
+            } else if (uri.startsWith("/gio-hang")) {
+                response.sendRedirect("/auth/login?required=cart");
             } else if (uri.startsWith("/vi-coolcash") || uri.startsWith("/hoi-vien")) {
                 response.sendRedirect("/auth/login?required=wallet");
             } else if (uri.startsWith("/thong-tin-tai-khoan") || uri.startsWith("/tai-khoan") || uri.startsWith("/profile")) {
                 response.sendRedirect("/auth/login?required=profile");
-            } else if (uri.startsWith("/admin")) {
-                response.sendRedirect("/auth/login?required=admin");
             } else {
                 response.sendRedirect("/auth/login");
             }
@@ -130,24 +118,35 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationSuccessHandler customSuccessHandler(UserRepository userRepository, SecurityContextRepository securityContextRepository) {
+    public AuthenticationSuccessHandler customAuthenticationSuccessHandler(UserRepository userRepository) {
         return (request, response, authentication) -> {
-            securityContextRepository.saveContext(SecurityContextHolder.getContext(), request, response);
-
-            HttpSession session = request.getSession(true);
             String email = authentication.getName();
             User user = userRepository.findByEmail(email).orElse(null);
+
             if (user != null) {
+                HttpSession session = request.getSession();
                 session.setAttribute("currentUser", user);
-                session.setAttribute("user", user);
                 session.setAttribute("userId", user.getId());
                 session.setAttribute("USER_ID", user.getId());
                 session.setAttribute("USER_EMAIL", user.getEmail());
                 session.setAttribute("USER_NAME", user.getFullName());
                 session.setAttribute("membershipTier", user.getMembershipTier());
 
-                // D2: Tự động merge giỏ hàng vãng lai (Guest) vào tài khoản khi đăng nhập
-                cartService.mergeGuestCartToUser(session.getId(), user);
+                // Merge Guest Cart: Kiểm tra cookie COOLMATE_GUEST_CART hoặc session id
+                String guestToken = null;
+                if (request.getCookies() != null) {
+                    for (Cookie c : request.getCookies()) {
+                        if ("COOLMATE_GUEST_CART".equals(c.getName()) && c.getValue() != null && !c.getValue().isBlank()) {
+                            guestToken = c.getValue();
+                            break;
+                        }
+                    }
+                }
+                if (guestToken != null) {
+                    cartService.mergeGuestCartToUser(guestToken, user);
+                } else {
+                    cartService.mergeGuestCartToUser(session.getId(), user);
+                }
             }
 
             boolean isAdminOrStaff = authentication.getAuthorities().stream()
@@ -160,16 +159,18 @@ public class SecurityConfig {
         };
     }
 
-    /**
-     * B6: Phân quyền bảo mật chặt chẽ giữa ADMIN và STAFF
-     */
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, 
-                                           DaoAuthenticationProvider authenticationProvider,
-                                           SecurityContextRepository securityContextRepository,
-                                           AuthenticationSuccessHandler customSuccessHandler) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http,
+                                            DaoAuthenticationProvider authenticationProvider,
+                                            SecurityContextRepository securityContextRepository,
+                                            AuthenticationSuccessHandler customSuccessHandler) throws Exception {
         http
-            .csrf(csrf -> csrf.disable()) // API & Sandbox compatibility
+            // LỖI 12 FIX: Bật CSRF cho browser forms, chỉ exempt webhook external callbacks và REST api
+            .csrf(csrf -> csrf.ignoringRequestMatchers(
+                "/thanh-toan/vnpay-ipn/**",
+                "/thanh-toan/vnpay-return/**",
+                "/api/**"
+            ))
             .authenticationProvider(authenticationProvider)
             .securityContext(sc -> sc.securityContextRepository(securityContextRepository))
             .exceptionHandling(ex -> ex.authenticationEntryPoint(customAuthenticationEntryPoint()))
@@ -211,17 +212,19 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/thong-tin-tai-khoan/**", "/profile/**", "/tai-khoan/**",
                     "/vi-coolcash/**",
+                    "/thanh-toan/checkout/**", "/thanh-toan/dat-hang/**",
                     "/don-hang/**",
                     "/doi-tra/yeu-cau/**",
                     "/danh-gia/gui/**",
-                    "/wishlist/**"
+                    "/wishlist/**",
+                    "/api/wishlist/**"
                 ).authenticated()
 
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form
                 .loginPage("/auth/login")
-                .loginProcessingUrl("/auth/login-process")
+                .loginProcessingUrl("/auth/login")
                 .usernameParameter("email")
                 .passwordParameter("password")
                 .successHandler(customSuccessHandler)
@@ -232,7 +235,7 @@ public class SecurityConfig {
                 .logoutUrl("/auth/logout")
                 .logoutSuccessUrl("/auth/login?logout=true")
                 .invalidateHttpSession(true)
-                .deleteCookies("JSESSIONID")
+                .deleteCookies("JSESSIONID", "COOLMATE_GUEST_CART")
                 .permitAll()
             );
 

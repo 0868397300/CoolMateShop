@@ -87,11 +87,9 @@ public class D2CBusinessLogicTests {
         when(productVariantRepository.findById(101L)).thenReturn(Optional.of(variant));
         when(productVariantRepository.save(any(ProductVariant.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        // User 1 reserves 1 -> success, stock becomes 0
         stockService.reserveStock(variant, 1, 1001L);
         assertEquals(0, variant.getStockQuantity());
 
-        // User 2 tries to reserve 1 -> throws CustomException (insufficient stock)
         assertThrows(CustomException.class, () -> {
             stockService.reserveStock(variant, 1, 1002L);
         });
@@ -127,7 +125,6 @@ public class D2CBusinessLogicTests {
         orderService.cancelOrder(order.getId(), null, "Khách hàng hủy đơn VNPAY quá hạn");
 
         assertEquals("CANCELLED", order.getOrderStatus());
-        // Stock should be restored by +2
         assertEquals(7, variant.getStockQuantity());
     }
 
@@ -143,10 +140,9 @@ public class D2CBusinessLogicTests {
         order.setPaymentStatus("PAYMENT_PAID");
         order.setOrderStatus("CONFIRMED");
 
-        // Attempting to confirm payment again on already PAID order
         boolean processedSecondTime = false;
         if ("PAYMENT_PAID".equalsIgnoreCase(order.getPaymentStatus())) {
-            processedSecondTime = false; // Idempotently skipped
+            processedSecondTime = false;
         } else {
             processedSecondTime = true;
         }
@@ -378,8 +374,9 @@ public class D2CBusinessLogicTests {
         when(cartRepository.findByUserId(1201L)).thenReturn(Optional.of(cartA));
         when(cartItemRepository.findById(999L)).thenReturn(Optional.of(itemB));
 
+        // LỖI 3 FIX: Sửa gọi cartService.updateQuantity() đúng contract
         assertThrows(CustomException.class, () -> {
-            cartService.updateCartItem(userA, null, 999L, 5);
+            cartService.updateQuantity(userA, null, 999L, 5);
         });
     }
 
