@@ -57,7 +57,6 @@ public class ForgotPasswordController {
             PasswordResetToken resetToken = new PasswordResetToken(token, user, expiry);
             tokenRepository.save(resetToken);
 
-            // LỖI 10 FIX: Sử dụng baseUrl cấu hình
             String resetUrl = baseUrl + "/auth/reset-password?token=" + token;
             notificationService.notifyPasswordReset(user, resetUrl);
         }
@@ -102,7 +101,8 @@ public class ForgotPasswordController {
 
         PasswordResetToken resetToken = tokenOpt.get();
         User user = resetToken.getUser();
-        user.setPassword(passwordEncoder.encode(newPassword));
+        // User entity uses setPasswordHash()
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
         resetToken.setIsUsed(true);

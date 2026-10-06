@@ -3,6 +3,7 @@ package sopvn.demo.payment;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 import sopvn.demo.config.VnpayConfig;
+import sopvn.demo.entity.Order;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -42,13 +43,33 @@ public class VnpayService {
         return (ip != null && !ip.isEmpty()) ? ip : "127.0.0.1";
     }
 
+    /**
+     * API chuẩn hóa cho PaymentController
+     */
+    public String createPaymentUrl(Order order, String clientIp) {
+        if (order == null) {
+            throw new IllegalArgumentException("Đơn hàng không được null khi tạo URL thanh toán VNPAY");
+        }
+        long amount = order.getFinalAmount() != null ? order.getFinalAmount().longValue() : 0L;
+        String orderInfo = "Thanh toan don hang Coolmate #" + order.getOrderCode();
+        String txnRef = (order.getVnpayTxnRef() != null && !order.getVnpayTxnRef().isBlank())
+                ? order.getVnpayTxnRef()
+                : order.getOrderCode();
+        return createPaymentUrl(amount, orderInfo, txnRef, vnpayConfig.getVnpReturnUrl(), clientIp);
+    }
+
     public String createPaymentUrl(long amount, String orderInfo, String txnRef, String returnUrl, HttpServletRequest request) {
+        String clientIp = getClientIp(request);
+        return createPaymentUrl(amount, orderInfo, txnRef, returnUrl, clientIp);
+    }
+
+    public String createPaymentUrl(long amount, String orderInfo, String txnRef, String returnUrl, String clientIp) {
         String vnp_Version = "2.1.0";
         String vnp_Command = "pay";
         String vnp_OrderInfo = orderInfo != null ? orderInfo : "Thanh toan don hang Coolmate";
         String orderType = "other";
         String vnp_TxnRef = (txnRef != null && !txnRef.isBlank()) ? txnRef : String.valueOf(System.currentTimeMillis());
-        String vnp_IpAddr = getClientIp(request);
+        String vnp_IpAddr = (clientIp != null && !clientIp.isBlank()) ? clientIp : "127.0.0.1";
         String vnp_TmnCode = vnpayConfig.getVnpTmnCode();
 
         Map<String, String> vnp_Params = new HashMap<>();

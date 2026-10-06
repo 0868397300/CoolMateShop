@@ -13,5 +13,7 @@ public interface ComboRuleRepository extends JpaRepository<ComboRule, Integer> {
 
     List<ComboRule> findByIsActiveTrue();
 
+    List<ComboRule> findByIsActiveTrueOrderByMinQuantityDesc();
+
     List<ComboRule> findByIsActiveTrueOrderByDiscountPercentageDesc();
 }

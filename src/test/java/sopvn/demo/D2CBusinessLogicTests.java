@@ -176,8 +176,9 @@ public class D2CBusinessLogicTests {
     @Test
     @DisplayName("TEST 5: Combo category rule - 1 Shirt + 1 Pants does not qualify 2 Shirts combo")
     void test5_comboCategoryRuleNotQualified() {
-        Category catShirt = new Category(); catShirt.setId(1L); catShirt.setName("Áo");
-        Category catPants = new Category(); catPants.setId(2L); catPants.setName("Quần");
+        // Category ID là Integer
+        Category catShirt = new Category(); catShirt.setId(1); catShirt.setName("Áo");
+        Category catPants = new Category(); catPants.setId(2); catPants.setName("Quần");
 
         Product p1 = new Product(); p1.setCategory(catShirt);
         Product p2 = new Product(); p2.setCategory(catPants);
@@ -191,7 +192,8 @@ public class D2CBusinessLogicTests {
         ComboRule shirtRule = new ComboRule();
         shirtRule.setCategory(catShirt);
         shirtRule.setMinQuantity(2);
-        shirtRule.setDiscountPercentage(10);
+        // ComboRule discountPercentage là BigDecimal
+        shirtRule.setDiscountPercentage(BigDecimal.valueOf(10));
         shirtRule.setIsActive(true);
 
         when(comboRuleRepository.findByIsActiveTrueOrderByMinQuantityDesc()).thenReturn(Collections.singletonList(shirtRule));
@@ -208,7 +210,8 @@ public class D2CBusinessLogicTests {
     @Test
     @DisplayName("TEST 6: Combo category rule - 2 Shirts qualifies for combo discount")
     void test6_comboCategoryRuleQualified() {
-        Category catShirt = new Category(); catShirt.setId(1L); catShirt.setName("Áo");
+        // Category ID là Integer
+        Category catShirt = new Category(); catShirt.setId(1); catShirt.setName("Áo");
         Product p1 = new Product(); p1.setCategory(catShirt);
 
         ProductVariant v1 = new ProductVariant(); v1.setProduct(p1); v1.setSalePrice(BigDecimal.valueOf(200_000));
@@ -218,7 +221,8 @@ public class D2CBusinessLogicTests {
         ComboRule shirtRule = new ComboRule();
         shirtRule.setCategory(catShirt);
         shirtRule.setMinQuantity(2);
-        shirtRule.setDiscountPercentage(10);
+        // ComboRule discountPercentage là BigDecimal
+        shirtRule.setDiscountPercentage(BigDecimal.valueOf(10));
         shirtRule.setIsActive(true);
 
         when(comboRuleRepository.findByIsActiveTrueOrderByMinQuantityDesc()).thenReturn(Collections.singletonList(shirtRule));
@@ -374,7 +378,7 @@ public class D2CBusinessLogicTests {
         when(cartRepository.findByUserId(1201L)).thenReturn(Optional.of(cartA));
         when(cartItemRepository.findById(999L)).thenReturn(Optional.of(itemB));
 
-        // LỖI 3 FIX: Sửa gọi cartService.updateQuantity() đúng contract
+        // Gọi cartService.updateQuantity() đúng contract
         assertThrows(CustomException.class, () -> {
             cartService.updateQuantity(userA, null, 999L, 5);
         });
@@ -403,14 +407,16 @@ public class D2CBusinessLogicTests {
     @Test
     @DisplayName("TEST 14: Role based access control separation")
     void test14_staffCannotPerformAdminOnlyActions() {
-        Role staffRole = new Role(); staffRole.setName("ROLE_STAFF");
-        Role adminRole = new Role(); adminRole.setName("ROLE_ADMIN");
+        // Role dùng roleName, User dùng roles Set
+        Role staffRole = new Role(); staffRole.setRoleName("ROLE_STAFF");
+        Role adminRole = new Role(); adminRole.setRoleName("ROLE_ADMIN");
 
-        User staff = new User(); staff.setRole(staffRole);
-        User admin = new User(); admin.setRole(adminRole);
+        User staff = new User(); staff.getRoles().add(staffRole);
+        User admin = new User(); admin.getRoles().add(adminRole);
 
-        assertNotEquals("ROLE_ADMIN", staff.getRole().getName(), "Staff must not have ROLE_ADMIN");
-        assertEquals("ROLE_ADMIN", admin.getRole().getName());
+        assertFalse(staff.hasRole("ROLE_ADMIN"), "Staff must not have ROLE_ADMIN");
+        assertTrue(staff.hasRole("ROLE_STAFF"), "Staff must have ROLE_STAFF");
+        assertTrue(admin.hasRole("ROLE_ADMIN"), "Admin must have ROLE_ADMIN");
     }
 
     // =========================================================================

@@ -24,10 +24,13 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import sopvn.demo.cart.CartService;
+import sopvn.demo.entity.Role;
 import sopvn.demo.entity.User;
 import sopvn.demo.repository.UserRepository;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -55,18 +58,26 @@ public class SecurityConfig {
                 throw new DisabledException("Tài khoản của bạn đã bị tạm khóa. Vui lòng liên hệ bộ phận hỗ trợ khách hàng Coolmate.");
             }
 
-            String roleName = (user.getRole() != null && user.getRole().getName() != null)
-                    ? user.getRole().getName()
-                    : "ROLE_CUSTOMER";
-
-            if (!roleName.startsWith("ROLE_")) {
-                roleName = "ROLE_" + roleName.toUpperCase();
+            List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+            if (user.getRoles() != null && !user.getRoles().isEmpty()) {
+                for (Role r : user.getRoles()) {
+                    if (r != null && r.getRoleName() != null && !r.getRoleName().isBlank()) {
+                        String rName = r.getRoleName().trim();
+                        if (!rName.startsWith("ROLE_")) {
+                            rName = "ROLE_" + rName.toUpperCase();
+                        }
+                        authorities.add(new SimpleGrantedAuthority(rName));
+                    }
+                }
+            }
+            if (authorities.isEmpty()) {
+                authorities.add(new SimpleGrantedAuthority("ROLE_CUSTOMER"));
             }
 
             return new org.springframework.security.core.userdetails.User(
                     user.getEmail(),
-                    user.getPassword(),
-                    Collections.singletonList(new SimpleGrantedAuthority(roleName))
+                    user.getPasswordHash(),
+                    authorities
             );
         };
     }
@@ -165,7 +176,7 @@ public class SecurityConfig {
                                             SecurityContextRepository securityContextRepository,
                                             AuthenticationSuccessHandler customSuccessHandler) throws Exception {
         http
-            // LỖI 12 FIX: Bật CSRF cho browser forms, chỉ exempt webhook external callbacks và REST api
+            // Bật CSRF cho browser forms, chỉ exempt webhook external callbacks và REST api
             .csrf(csrf -> csrf.ignoringRequestMatchers(
                 "/thanh-toan/vnpay-ipn/**",
                 "/thanh-toan/vnpay-return/**",

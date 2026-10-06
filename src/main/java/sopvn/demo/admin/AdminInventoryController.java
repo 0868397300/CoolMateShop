@@ -5,6 +5,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import sopvn.demo.core.exception.CustomException;
 import sopvn.demo.entity.InventoryReceipt;
 import sopvn.demo.entity.InventoryReceiptItem;
 import sopvn.demo.entity.ProductVariant;
@@ -109,7 +110,7 @@ public class AdminInventoryController {
     }
 
     /**
-     * O: Admin phê duyệt phiếu nhập hàng: Tăng tồn kho & Cập nhật Weighted Average Cost
+     * Admin phê duyệt phiếu nhập hàng: Tăng tồn kho & Cập nhật Weighted Average Cost
      */
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/{id}/duyet")
@@ -139,6 +140,9 @@ public class AdminInventoryController {
         try {
             User admin = userRepository.findByEmail(principal.getName()).orElseThrow();
             InventoryReceipt receipt = inventoryReceiptRepository.findById(id).orElseThrow();
+            if (!"SUBMITTED".equalsIgnoreCase(receipt.getStatus()) && !"PENDING".equalsIgnoreCase(receipt.getStatus())) {
+                throw new CustomException("Phiếu nhập kho này đã được xử lý trước đó (trạng thái: " + receipt.getStatus() + ")!");
+            }
             receipt.setStatus("REJECTED");
             receipt.setRejectedReason(reason != null ? reason : "Không đạt chất lượng kiểm định.");
             receipt.setApprovedBy(admin);

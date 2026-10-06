@@ -13,6 +13,7 @@ import sopvn.demo.repository.ProductVariantRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -62,7 +63,7 @@ public class InventoryService {
         receipt.setSupplierName(request.getSupplierName().trim());
         receipt.setCreatedBy(currentUser);
         receipt.setNote(request.getNote());
-        // Phase 6: Trạng thái ban đầu khi tạo phiếu là SUBMITTED, chỉ duyệt (APPROVED) mới tăng tồn kho
+        // Trạng thái ban đầu khi tạo phiếu là SUBMITTED, chỉ duyệt (APPROVED) mới tăng tồn kho
         receipt.setStatus("SUBMITTED");
         receipt.setCreatedAt(LocalDateTime.now());
 
@@ -100,26 +101,49 @@ public class InventoryService {
 
     public InventoryStatsDTO getInventoryStats() {
         InventoryStatsDTO stats = new InventoryStatsDTO();
-        List<ProductVariant> variants = variantRepository.findAll();
 
-        int totalStock = 0;
-        BigDecimal totalValue = BigDecimal.ZERO;
-        int lowStockCount = 0;
+        List<InventoryReceipt> allReceipts = receiptRepository.findAll();
+        long totalReceipts = allReceipts.size();
 
-        for (ProductVariant v : variants) {
-            int qty = v.getStockQuantity() != null ? v.getStockQuantity() : 0;
-            totalStock += qty;
-            BigDecimal cost = v.getImportPrice() != null ? v.getImportPrice() : BigDecimal.ZERO;
-            totalValue = totalValue.add(cost.multiply(BigDecimal.valueOf(qty)));
-            if (qty <= 5) {
-                lowStockCount++;
+        LocalDateTime startOfMonth = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
+        BigDecimal spentThisMonth = BigDecimal.ZERO;
+        long totalUnitsImported = 0;
+
+        for (InventoryReceipt r : allReceipts) {
+            if (r.getCreatedAt() != null && !r.getCreatedAt().isBefore(startOfMonth)) {
+                if (r.getTotalAmount() != null) {
+                    spentThisMonth = spentThisMonth.add(r.getTotalAmount());
+                }
+            }
+            if (r.getItems() != null) {
+                for (InventoryReceiptItem item : r.getItems()) {
+                    if (item.getQuantity() != null) {
+                        totalUnitsImported += item.getQuantity();
+                    }
+                }
             }
         }
 
-        stats.setTotalSkus(variants.size());
-        stats.setTotalStockQuantity(totalStock);
+        List<ProductVariant> variants = variantRepository.findAll();
+        BigDecimal totalValue = BigDecimal.ZERO;
+        List<ProductVariant> lowStockList = new ArrayList<>();
+
+        for (ProductVariant v : variants) {
+            int qty = v.getStockQuantity() != null ? v.getStockQuantity() : 0;
+            BigDecimal cost = v.getImportPrice() != null ? v.getImportPrice() : BigDecimal.ZERO;
+            totalValue = totalValue.add(cost.multiply(BigDecimal.valueOf(qty)));
+            if (qty <= 5) {
+                lowStockList.add(v);
+            }
+        }
+
+        // Cập nhật đúng các methods hiện có của InventoryStatsDTO
+        stats.setTotalReceipts(totalReceipts);
+        stats.setTotalSpentThisMonth(spentThisMonth);
+        stats.setTotalUnitsImported(totalUnitsImported);
         stats.setTotalInventoryValue(totalValue);
-        stats.setLowStockVariantCount(lowStockCount);
+        stats.setLowStockVariants(lowStockList);
+
         return stats;
     }
 }

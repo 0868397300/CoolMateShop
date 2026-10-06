@@ -1254,13 +1254,15 @@ BEGIN
         [variant_id] [bigint] NOT NULL,
         [movement_type] [varchar](30) NOT NULL, -- IMPORT, ORDER_RESERVE, ORDER_CONSUME, ORDER_RELEASE, RETURN_RESTOCK, MANUAL_ADJUST
         [quantity] [int] NOT NULL,
-        [balance_before] [int] NOT NULL,
-        [balance_after] [int] NOT NULL,
+        [before_quantity] [int] NULL,
+        [after_quantity] [int] NULL,
         [reference_type] [varchar](30) NULL, -- INVENTORY_RECEIPT, ORDER, ORDER_RETURN, MANUAL
         [reference_id] [bigint] NULL,
+        [created_by] [bigint] NULL,
         [note] [nvarchar](500) NULL,
         [created_at] [datetime2](7) NOT NULL DEFAULT GETDATE(),
-        CONSTRAINT [FK_InvMovement_Variant] FOREIGN KEY([variant_id]) REFERENCES [dbo].[Product_Variants] ([id])
+        CONSTRAINT [FK_InvMovement_Variant] FOREIGN KEY([variant_id]) REFERENCES [dbo].[Product_Variants] ([id]),
+        CONSTRAINT [FK_InvMovement_User] FOREIGN KEY([created_by]) REFERENCES [dbo].[Users] ([id])
     );
     PRINT 'Created Table Inventory_Movements';
 END
@@ -1274,6 +1276,8 @@ BEGIN
         [promotion_id] [bigint] NOT NULL,
         [user_id] [bigint] NULL,
         [order_id] [bigint] NOT NULL,
+        [discount_amount] [decimal](18, 2) NOT NULL DEFAULT 0,
+        [status] [nvarchar](30) NOT NULL DEFAULT 'RESERVED',
         [used_at] [datetime2](7) NOT NULL DEFAULT GETDATE(),
         CONSTRAINT [FK_PromoUsage_Promotion] FOREIGN KEY([promotion_id]) REFERENCES [dbo].[Promotions] ([id]),
         CONSTRAINT [FK_PromoUsage_Order] FOREIGN KEY([order_id]) REFERENCES [dbo].[Orders] ([id])
@@ -1315,9 +1319,9 @@ BEGIN
     CREATE TABLE [dbo].[Password_Reset_Tokens](
         [id] [bigint] IDENTITY(1,1) NOT NULL PRIMARY KEY,
         [user_id] [bigint] NOT NULL,
-        [token] [varchar](100) NOT NULL UNIQUE,
-        [expires_at] [datetime2](7) NOT NULL,
-        [used] [bit] NOT NULL DEFAULT 0,
+        [token] [nvarchar](100) NOT NULL UNIQUE,
+        [expiry_date] [datetime2](7) NOT NULL,
+        [is_used] [bit] NOT NULL DEFAULT 0,
         [created_at] [datetime2](7) NOT NULL DEFAULT GETDATE(),
         CONSTRAINT [FK_PwdReset_User] FOREIGN KEY([user_id]) REFERENCES [dbo].[Users] ([id]) ON DELETE CASCADE
     );

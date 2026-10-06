@@ -45,10 +45,10 @@ public class PricingService {
             return summary;
         }
 
-        // 1. Tính Subtotal và Group theo Category cho Combo Rules
+        // 1. Tính Subtotal và Group theo Category cho Combo Rules (Category.id là Integer)
         BigDecimal subtotal = BigDecimal.ZERO;
-        Map<Long, Integer> categoryQtyMap = new HashMap<>();
-        Map<Long, BigDecimal> categoryAmountMap = new HashMap<>();
+        Map<Integer, Integer> categoryQtyMap = new HashMap<>();
+        Map<Integer, BigDecimal> categoryAmountMap = new HashMap<>();
 
         for (CartItem item : items) {
             ProductVariant v = item.getVariant();
@@ -58,9 +58,11 @@ public class PricingService {
             subtotal = subtotal.add(lineTotal);
 
             if (v.getProduct() != null && v.getProduct().getCategory() != null) {
-                Long catId = v.getProduct().getCategory().getId();
-                categoryQtyMap.put(catId, categoryQtyMap.getOrDefault(catId, 0) + item.getQuantity());
-                categoryAmountMap.put(catId, categoryAmountMap.getOrDefault(catId, BigDecimal.ZERO).add(lineTotal));
+                Integer catId = v.getProduct().getCategory().getId();
+                if (catId != null) {
+                    categoryQtyMap.put(catId, categoryQtyMap.getOrDefault(catId, 0) + item.getQuantity());
+                    categoryAmountMap.put(catId, categoryAmountMap.getOrDefault(catId, BigDecimal.ZERO).add(lineTotal));
+                }
             }
         }
         summary.setSubtotal(subtotal);
@@ -70,16 +72,19 @@ public class PricingService {
         List<ComboRule> activeRules = comboRuleRepository.findByIsActiveTrueOrderByMinQuantityDesc();
         List<ComboRule> appliedCombos = new ArrayList<>();
 
-        Set<Long> processedCategories = new HashSet<>();
-        for (Map.Entry<Long, Integer> entry : categoryQtyMap.entrySet()) {
-            Long catId = entry.getKey();
+        Set<Integer> processedCategories = new HashSet<>();
+        for (Map.Entry<Integer, Integer> entry : categoryQtyMap.entrySet()) {
+            Integer catId = entry.getKey();
             int qty = entry.getValue();
             BigDecimal catAmount = categoryAmountMap.getOrDefault(catId, BigDecimal.ZERO);
 
             for (ComboRule rule : activeRules) {
-                if (rule.getCategory() != null && rule.getCategory().getId().equals(catId)) {
+                if (rule.getCategory() != null && rule.getCategory().getId() != null && rule.getCategory().getId().equals(catId)) {
                     if (qty >= rule.getMinQuantity() && !processedCategories.contains(catId)) {
-                        BigDecimal discPercent = BigDecimal.valueOf(rule.getDiscountPercentage()).divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
+                        // rule.getDiscountPercentage() trả về BigDecimal
+                        BigDecimal discPercent = rule.getDiscountPercentage() != null 
+                                ? rule.getDiscountPercentage().divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP)
+                                : BigDecimal.ZERO;
                         BigDecimal ruleDiscount = catAmount.multiply(discPercent).setScale(0, RoundingMode.HALF_UP);
                         comboDiscount = comboDiscount.add(ruleDiscount);
                         appliedCombos.add(rule);

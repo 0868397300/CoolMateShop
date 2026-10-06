@@ -140,8 +140,8 @@ public class StockService {
             throw new CustomException("Phiếu nhập kho không có sản phẩm!");
         }
 
-        if ("APPROVED".equalsIgnoreCase(receipt.getStatus())) {
-            throw new CustomException("Phiếu nhập kho này đã được phê duyệt trước đó!");
+        if (!"SUBMITTED".equalsIgnoreCase(receipt.getStatus()) && !"PENDING".equalsIgnoreCase(receipt.getStatus())) {
+            throw new CustomException("Phiếu nhập kho này đã được xử lý trước đó (trạng thái: " + receipt.getStatus() + ")!");
         }
 
         receipt.setStatus("APPROVED");
