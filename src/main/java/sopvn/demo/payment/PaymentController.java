@@ -80,6 +80,7 @@ public class PaymentController {
             Object sUser = session.getAttribute("currentUser");
             if (sUser instanceof User) return (User) sUser;
             Object uid = session.getAttribute("userId");
+            if (uid == null) uid = session.getAttribute("USER_ID");
             if (uid != null) {
                 try {
                     return userRepository.findById(Long.valueOf(uid.toString())).orElse(null);
@@ -108,10 +109,16 @@ public class PaymentController {
         Cart actualCart = cartService.getOrCreateCart(user, guestToken);
         List<CartItem> cartItems = (actualCart != null && actualCart.getItems() != null) ? actualCart.getItems() : Collections.emptyList();
 
-        BigDecimal requestedCoolCash = (useCoolCash && user != null) ? user.getCoolcashBalance() : BigDecimal.ZERO;
-        PricingSummaryDTO pricing = pricingService.calculatePricing(user, cartItems, voucherCode, requestedCoolCash, null, null, "COD");
-
         List<UserAddress> addresses = (user != null) ? userAddressRepository.findByUserIdOrderByIsDefaultDesc(user.getId()) : Collections.emptyList();
+        String initProvince = null;
+        String initDistrict = null;
+        if (!addresses.isEmpty()) {
+            initProvince = addresses.get(0).getProvinceName();
+            initDistrict = addresses.get(0).getDistrictName();
+        }
+
+        BigDecimal requestedCoolCash = (useCoolCash && user != null) ? user.getCoolcashBalance() : BigDecimal.ZERO;
+        PricingSummaryDTO pricing = pricingService.calculatePricing(user, cartItems, voucherCode, requestedCoolCash, initProvince, initDistrict, "COD");
 
         model.addAttribute("cart", cart);
         model.addAttribute("pricing", pricing);
@@ -124,10 +131,17 @@ public class PaymentController {
     }
 
     @PostMapping("/dat-hang")
-    public String placeOrder(@RequestParam("recipientName") String recipientName,
-                             @RequestParam("recipientPhone") String recipientPhone,
+    public String placeOrder(@RequestParam(value = "selectedAddressId", required = false) Long selectedAddressId,
+                             @RequestParam(value = "recipientName", required = false) String recipientName,
+                             @RequestParam(value = "recipientPhone", required = false) String recipientPhone,
                              @RequestParam(value = "recipientEmail", required = false) String recipientEmail,
-                             @RequestParam("shippingAddress") String shippingAddress,
+                             @RequestParam(value = "provinceName", required = false) String provinceName,
+                             @RequestParam(value = "districtName", required = false) String districtName,
+                             @RequestParam(value = "wardName", required = false) String wardName,
+                             @RequestParam(value = "specificAddress", required = false) String specificAddress,
+                             @RequestParam(value = "shippingAddress", required = false) String shippingAddress,
+                             @RequestParam(value = "saveAddress", defaultValue = "false") boolean saveAddress,
+                             @RequestParam(value = "isDefaultAddress", defaultValue = "false") boolean isDefaultAddress,
                              @RequestParam(value = "note", required = false) String note,
                              @RequestParam(value = "paymentMethod", defaultValue = "COD") String paymentMethod,
                              @RequestParam(value = "voucherCode", required = false) String voucherCode,
@@ -147,8 +161,83 @@ public class PaymentController {
         }
 
         try {
-            Order order = orderService.createOrder(user, recipientName, recipientPhone, recipientEmail,
-                    shippingAddress, note, paymentMethod, voucherCode, useCoolCash, cart.getItems());
+            // Xử lý địa chỉ nhận hàng
+            String finalShippingAddress;
+            String finalRecipientName = recipientName;
+            String finalRecipientPhone = recipientPhone;
+            String finalProvince = provinceName;
+            String finalDistrict = districtName;
+
+            if (selectedAddressId != null) {
+                // Người dùng chọn địa chỉ đã lưu trong sổ địa chỉ -> Kiểm tra quyền sở hữu (Ownership)
+                UserAddress addr = userAddressRepository.findById(selectedAddressId)
+                        .orElseThrow(() -> new CustomException("Địa chỉ đã lưu không tồn tại."));
+
+                if (user == null || addr.getUser() == null || !addr.getUser().getId().equals(user.getId())) {
+                    throw new CustomException("Bạn không có quyền sử dụng địa chỉ này.");
+                }
+
+                finalRecipientName = addr.getRecipientName();
+                finalRecipientPhone = addr.getRecipientPhone();
+                finalProvince = addr.getProvinceName();
+                finalDistrict = addr.getDistrictName();
+                finalShippingAddress = (addr.getStreetAddress() != null ? addr.getStreetAddress().trim() : "") + ", " +
+                        (addr.getWardName() != null ? addr.getWardName().trim() : "") + ", " +
+                        (addr.getDistrictName() != null ? addr.getDistrictName().trim() : "") + ", " +
+                        (addr.getProvinceName() != null ? addr.getProvinceName().trim() : "");
+            } else {
+                // Nhập địa chỉ mới
+                if (finalRecipientName == null || finalRecipientName.isBlank()) {
+                    throw new CustomException("Vui lòng nhập họ và tên người nhận hàng.");
+                }
+                if (finalRecipientPhone == null || finalRecipientPhone.isBlank()) {
+                    throw new CustomException("Vui lòng nhập số điện thoại nhận hàng.");
+                }
+
+                if (shippingAddress != null && !shippingAddress.isBlank()) {
+                    finalShippingAddress = shippingAddress.trim();
+                } else {
+                    if (finalProvince == null || finalProvince.isBlank()) {
+                        throw new CustomException("Vui lòng chọn Tỉnh / Thành phố giao hàng.");
+                    }
+                    if (finalDistrict == null || finalDistrict.isBlank()) {
+                        throw new CustomException("Vui lòng chọn Quận / Huyện giao hàng.");
+                    }
+                    if (wardName == null || wardName.isBlank()) {
+                        throw new CustomException("Vui lòng chọn Phường / Xã giao hàng.");
+                    }
+                    if (specificAddress == null || specificAddress.isBlank()) {
+                        throw new CustomException("Vui lòng nhập số nhà, tên đường cụ thể.");
+                    }
+                    finalShippingAddress = specificAddress.trim() + ", " + wardName.trim() + ", " + finalDistrict.trim() + ", " + finalProvince.trim();
+                }
+
+                // Lưu địa chỉ vào Sổ địa chỉ nếu khách hàng yêu cầu
+                if (user != null && saveAddress && specificAddress != null && !specificAddress.isBlank()) {
+                    if (isDefaultAddress) {
+                        List<UserAddress> existing = userAddressRepository.findByUserId(user.getId());
+                        for (UserAddress ea : existing) {
+                            if (Boolean.TRUE.equals(ea.getIsDefault())) {
+                                ea.setIsDefault(false);
+                                userAddressRepository.save(ea);
+                            }
+                        }
+                    }
+                    UserAddress newAddr = new UserAddress();
+                    newAddr.setUser(user);
+                    newAddr.setRecipientName(finalRecipientName.trim());
+                    newAddr.setRecipientPhone(finalRecipientPhone.trim());
+                    newAddr.setProvinceName(finalProvince != null ? finalProvince.trim() : "");
+                    newAddr.setDistrictName(finalDistrict != null ? finalDistrict.trim() : "");
+                    newAddr.setWardName(wardName != null ? wardName.trim() : "");
+                    newAddr.setStreetAddress(specificAddress.trim());
+                    newAddr.setIsDefault(isDefaultAddress);
+                    userAddressRepository.save(newAddr);
+                }
+            }
+
+            Order order = orderService.createOrder(user, finalRecipientName, finalRecipientPhone, recipientEmail,
+                    finalShippingAddress, finalProvince, finalDistrict, note, paymentMethod, voucherCode, useCoolCash, cart.getItems());
 
             if ("VNPAY".equalsIgnoreCase(paymentMethod)) {
                 String clientIp = vnpayService.getClientIp(request);

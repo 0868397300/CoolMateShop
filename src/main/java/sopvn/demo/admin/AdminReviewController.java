@@ -4,13 +4,12 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import sopvn.demo.core.service.ReviewService;
 import sopvn.demo.entity.Product;
 import sopvn.demo.entity.Review;
 import sopvn.demo.repository.ProductRepository;
 import sopvn.demo.repository.ReviewRepository;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,10 +19,14 @@ public class AdminReviewController {
 
     private final ReviewRepository reviewRepository;
     private final ProductRepository productRepository;
+    private final ReviewService reviewService;
 
-    public AdminReviewController(ReviewRepository reviewRepository, ProductRepository productRepository) {
+    public AdminReviewController(ReviewRepository reviewRepository,
+                                 ProductRepository productRepository,
+                                 ReviewService reviewService) {
         this.reviewRepository = reviewRepository;
         this.productRepository = productRepository;
+        this.reviewService = reviewService;
     }
 
     @GetMapping
@@ -79,23 +82,23 @@ public class AdminReviewController {
 
     @PostMapping("/{id}/duyet")
     public String approveReview(@PathVariable("id") Long id, RedirectAttributes redirectAttributes) {
-        reviewRepository.findById(id).ifPresent(r -> {
-            r.setIsApproved(true);
-            reviewRepository.save(r);
-            updateProductRating(r.getProduct());
+        try {
+            reviewService.approveReview(id);
             redirectAttributes.addFlashAttribute("successMessage", "Đã phê duyệt đánh giá công khai lên website!");
-        });
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Lỗi: " + e.getMessage());
+        }
         return "redirect:/admin/danh-gia";
     }
 
     @PostMapping("/{id}/an")
     public String hideReview(@PathVariable("id") Long id, RedirectAttributes redirectAttributes) {
-        reviewRepository.findById(id).ifPresent(r -> {
-            r.setIsApproved(false);
-            reviewRepository.save(r);
-            updateProductRating(r.getProduct());
+        try {
+            reviewService.hideReview(id);
             redirectAttributes.addFlashAttribute("successMessage", "Đã tạm ẩn đánh giá của khách hàng!");
-        });
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Lỗi: " + e.getMessage());
+        }
         return "redirect:/admin/danh-gia";
     }
 
@@ -103,11 +106,12 @@ public class AdminReviewController {
     public String replyReview(@PathVariable("id") Long id,
                               @RequestParam("adminReply") String adminReply,
                               RedirectAttributes redirectAttributes) {
-        reviewRepository.findById(id).ifPresent(r -> {
-            r.setAdminReply(adminReply != null ? adminReply.trim() : "");
-            reviewRepository.save(r);
+        try {
+            reviewService.replyReview(id, adminReply);
             redirectAttributes.addFlashAttribute("successMessage", "Phản hồi khách hàng thành công!");
-        });
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Lỗi: " + e.getMessage());
+        }
         return "redirect:/admin/danh-gia";
     }
 
@@ -118,26 +122,12 @@ public class AdminReviewController {
             if (r != null) {
                 Product p = r.getProduct();
                 reviewRepository.delete(r);
-                updateProductRating(p);
+                reviewService.updateProductRatingStats(p);
                 redirectAttributes.addFlashAttribute("successMessage", "Đã xóa đánh giá thành công!");
             }
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("errorMessage", "Không thể xóa đánh giá: " + e.getMessage());
         }
         return "redirect:/admin/danh-gia";
-    }
-
-    private void updateProductRating(Product product) {
-        if (product == null) return;
-        List<Review> approved = reviewRepository.findByProductIdAndIsApprovedTrueOrderByCreatedAtDesc(product.getId());
-        if (approved.isEmpty()) {
-            product.setReviewCount(0);
-            product.setRatingAvg(BigDecimal.valueOf(5.0));
-        } else {
-            product.setReviewCount(approved.size());
-            double avg = approved.stream().mapToInt(Review::getRating).average().orElse(5.0);
-            product.setRatingAvg(BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP));
-        }
-        productRepository.save(product);
     }
 }

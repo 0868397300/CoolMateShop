@@ -31,6 +31,13 @@ public class StockService {
     @Transactional
     public void reserveStock(ProductVariant variant, int quantity, Long orderId) {
         if (quantity <= 0) return;
+
+        // Idempotency: Kiểm tra nếu mục này đã được reserve cho orderId trước đó
+        if (orderId != null && inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndVariantIdAndMovementType(
+                "ORDER", orderId, variant.getId(), "ORDER_RESERVE")) {
+            return;
+        }
+
         ProductVariant v = productVariantRepository.findById(variant.getId())
                 .orElseThrow(() -> new CustomException("Biến thể sản phẩm không tồn tại: " + variant.getId()));
 
@@ -68,6 +75,13 @@ public class StockService {
     @Transactional
     public void consumeStock(Order order) {
         if (order == null || order.getItems() == null) return;
+
+        // Idempotency: Đã consume cho order này rồi thì không thực hiện lại
+        if (inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType(
+                "ORDER", order.getId(), "ORDER_CONSUME")) {
+            return;
+        }
+
         for (OrderItem item : order.getItems()) {
             if (item.getVariant() != null && item.getQuantity() != null && item.getQuantity() > 0) {
                 InventoryMovement movement = new InventoryMovement();
@@ -87,6 +101,19 @@ public class StockService {
     @Transactional
     public void releaseStock(Order order) {
         if (order == null || order.getItems() == null) return;
+
+        // Idempotency: Đã release rồi thì bỏ qua
+        if (inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType(
+                "ORDER", order.getId(), "ORDER_RELEASE")) {
+            return;
+        }
+
+        // Chỉ hoàn kho nếu trước đó thực sự đã reserve
+        if (!inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType(
+                "ORDER", order.getId(), "ORDER_RESERVE")) {
+            return;
+        }
+
         for (OrderItem item : order.getItems()) {
             if (item.getVariant() != null && item.getQuantity() != null && item.getQuantity() > 0) {
                 ProductVariant v = productVariantRepository.findById(item.getVariant().getId()).orElse(null);
@@ -114,6 +141,13 @@ public class StockService {
     @Transactional
     public void restockFromReturn(ProductVariant variant, int quantity, Long returnId) {
         if (variant == null || quantity <= 0) return;
+
+        // Idempotency: Kiểm tra nếu đã nhập lại kho cho returnId này rồi
+        if (returnId != null && inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndVariantIdAndMovementType(
+                "RETURN", returnId, variant.getId(), "RETURN_RESTOCK")) {
+            return;
+        }
+
         ProductVariant v = productVariantRepository.findById(variant.getId()).orElse(null);
         if (v != null) {
             int before = v.getStockQuantity();

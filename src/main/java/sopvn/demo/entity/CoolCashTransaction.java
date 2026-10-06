@@ -31,6 +31,9 @@ public class CoolCashTransaction {
     @Column(name = "status", length = 20, nullable = false)
     private String status = "COMPLETED";
 
+    @Column(name = "idempotency_key", length = 100, unique = true)
+    private String idempotencyKey;
+
     @Column(name = "description", length = 255, nullable = false)
     private String description;
 
@@ -87,6 +90,14 @@ public class CoolCashTransaction {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public void setIdempotencyKey(String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
     }
 
     public String getDescription() {

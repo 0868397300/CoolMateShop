@@ -51,13 +51,17 @@ public class AdminReturnController {
                 staffUser = userRepository.findByEmail(userDetails.getUsername()).orElse(null);
             }
 
-            String action = ("COMPLETED".equalsIgnoreCase(status) || "APPROVE".equalsIgnoreCase(status)) ? "APPROVE" : "REJECT";
+            String action = (status != null) ? status.trim().toUpperCase() : "APPROVE";
             returnService.processReturnApproval(id, action, refundMethod, rejectReason, staffUser);
 
-            if ("APPROVE".equalsIgnoreCase(action)) {
-                redirectAttributes.addFlashAttribute("successMessage", "Chấp thuận và hoàn tất đổi/trả hàng #" + id + " thành công!");
-            } else {
+            if ("REJECT".equalsIgnoreCase(action)) {
                 redirectAttributes.addFlashAttribute("successMessage", "Đã từ chối yêu cầu đổi/trả hàng #" + id);
+            } else if ("APPROVE".equalsIgnoreCase(action)) {
+                redirectAttributes.addFlashAttribute("successMessage", "Đã phê duyệt yêu cầu đổi/trả hàng #" + id + ", chờ khách gửi hàng.");
+            } else if ("PROCESS".equalsIgnoreCase(action)) {
+                redirectAttributes.addFlashAttribute("successMessage", "Đã tiếp nhận hàng đổi trả #" + id + ", đang kiểm định.");
+            } else {
+                redirectAttributes.addFlashAttribute("successMessage", "Đã hoàn tất đổi/trả hàng #" + id + " thành công!");
             }
         } catch (CustomException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());

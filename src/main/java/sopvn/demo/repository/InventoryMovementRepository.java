@@ -8,7 +8,14 @@ import java.util.List;
 
 @Repository
 public interface InventoryMovementRepository extends JpaRepository<InventoryMovement, Long> {
+
     List<InventoryMovement> findByVariantIdOrderByCreatedAtDesc(Long variantId);
+
     List<InventoryMovement> findByReferenceTypeAndReferenceId(String referenceType, Long referenceId);
+
     List<InventoryMovement> findAllByOrderByCreatedAtDesc();
+
+    boolean existsByReferenceTypeAndReferenceIdAndMovementType(String referenceType, Long referenceId, String movementType);
+
+    boolean existsByReferenceTypeAndReferenceIdAndVariantIdAndMovementType(String referenceType, Long referenceId, Long variantId, String movementType);
 }

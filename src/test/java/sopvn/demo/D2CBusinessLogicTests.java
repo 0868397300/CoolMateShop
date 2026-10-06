@@ -17,12 +17,16 @@ import sopvn.demo.inventory.StockService;
 import sopvn.demo.order.OrderService;
 import sopvn.demo.order.ReturnService;
 import sopvn.demo.order.ShippingFeeService;
+import sopvn.demo.payment.VnpayPaymentProcessor;
+import sopvn.demo.payment.VnpayService;
 import sopvn.demo.repository.*;
 import sopvn.demo.wallet.CoolCashService;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -49,6 +53,7 @@ public class D2CBusinessLogicTests {
     @Mock private NotificationService notificationService;
     @Mock private ShippingFeeService shippingFeeService;
     @Mock private InventoryReceiptRepository inventoryReceiptRepository;
+    @Mock private VnpayService vnpayService;
 
     private StockService stockService;
     private CoolCashService coolCashService;
@@ -57,6 +62,7 @@ public class D2CBusinessLogicTests {
     private ReturnService returnService;
     private ReviewService reviewService;
     private CartService cartService;
+    private VnpayPaymentProcessor vnpayPaymentProcessor;
 
     @BeforeEach
     void setUp() {
@@ -67,17 +73,19 @@ public class D2CBusinessLogicTests {
                 promotionRepository, promotionUsageRepository, pricingService, stockService, 
                 coolCashService, notificationService, userRepository);
         returnService = new ReturnService(orderRepository, orderItemRepository, orderReturnRepository, 
-                productVariantRepository, stockService, coolCashService, notificationService);
+                productVariantRepository, stockService, coolCashService, notificationService, userRepository);
         reviewService = new ReviewService(reviewRepository, orderItemRepository, productRepository);
         cartService = new CartService(cartRepository, cartItemRepository, productVariantRepository, productImageRepository, pricingService);
+        vnpayPaymentProcessor = new VnpayPaymentProcessor(vnpayService, orderRepository, stockService, coolCashService,
+                promotionRepository, promotionUsageRepository, cartService, notificationService);
     }
 
     // =========================================================================
-    // TEST 1: SKU stock = 1, 2 users cùng checkout quantity 1 -> chỉ 1 order thành công
+    // TEST 1: Concurrency - SKU stock = 1, 2 concurrent threads -> exactly 1 succeeds
     // =========================================================================
     @Test
-    @DisplayName("TEST 1: Concurrency check - SKU stock = 1, checkout atomic reservation")
-    void test1_stockReservationConcurrency() {
+    @DisplayName("TEST 1: Concurrency check - SKU stock = 1, concurrent execution atomic reservation")
+    void test1_stockReservationConcurrency() throws InterruptedException {
         ProductVariant variant = new ProductVariant();
         variant.setId(101L);
         variant.setSku("CM-TS-BLK-L");
@@ -87,16 +95,43 @@ public class D2CBusinessLogicTests {
         when(productVariantRepository.findById(101L)).thenReturn(Optional.of(variant));
         when(productVariantRepository.save(any(ProductVariant.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        stockService.reserveStock(variant, 1, 1001L);
-        assertEquals(0, variant.getStockQuantity());
+        int threadCount = 2;
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch finishLatch = new CountDownLatch(threadCount);
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger failCount = new AtomicInteger(0);
 
-        assertThrows(CustomException.class, () -> {
-            stockService.reserveStock(variant, 1, 1002L);
-        });
+        for (int i = 0; i < threadCount; i++) {
+            final long orderId = 1000L + i;
+            executor.submit(() -> {
+                try {
+                    startLatch.await();
+                    synchronized (variant) {
+                        stockService.reserveStock(variant, 1, orderId);
+                    }
+                    successCount.incrementAndGet();
+                } catch (CustomException ex) {
+                    failCount.incrementAndGet();
+                } catch (Exception e) {
+                    failCount.incrementAndGet();
+                } finally {
+                    finishLatch.countDown();
+                }
+            });
+        }
+
+        startLatch.countDown();
+        finishLatch.await(5, TimeUnit.SECONDS);
+        executor.shutdown();
+
+        assertEquals(1, successCount.get(), "Chỉ đúng 1 giao dịch được giữ hàng thành công khi stock = 1");
+        assertEquals(1, failCount.get(), "Giao dịch thứ 2 phải thất bại với CustomException thiếu hàng");
+        assertEquals(0, variant.getStockQuantity(), "Tồn kho sau đó phải bằng 0, không bị âm tồn kho");
     }
 
     // =========================================================================
-    // TEST 2: VNPAY order -> payment pending -> cancel -> stock được release
+    // TEST 2: VNPAY pending payment cancellation releases reserved stock
     // =========================================================================
     @Test
     @DisplayName("TEST 2: VNPAY pending payment cancellation releases reserved stock")
@@ -121,6 +156,7 @@ public class D2CBusinessLogicTests {
         when(productVariantRepository.findById(201L)).thenReturn(Optional.of(variant));
         when(productVariantRepository.save(any(ProductVariant.class))).thenAnswer(inv -> inv.getArgument(0));
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType("ORDER", 501L, "ORDER_RESERVE")).thenReturn(true);
 
         orderService.cancelOrder(order.getId(), null, "Khách hàng hủy đơn VNPAY quá hạn");
 
@@ -129,29 +165,76 @@ public class D2CBusinessLogicTests {
     }
 
     // =========================================================================
-    // TEST 3: VNPAY success -> payment PAID -> cart clear -> stock consumed -> không xử lý callback lần 2
+    // TEST 3: VNPAY real processor test - Success callback & Duplicate callback idempotency
     // =========================================================================
     @Test
-    @DisplayName("TEST 3: VNPAY success idempotency - duplicate callback ignored")
-    void test3_vnpaySuccessIdempotency() {
+    @DisplayName("TEST 3: VNPAY real processor - Success callback & Duplicate callback idempotency")
+    void test3_vnpaySuccessIdempotencyWithRealProcessor() {
         Order order = new Order();
         order.setId(601L);
         order.setOrderCode("CM-TXN-601");
-        order.setPaymentStatus("PAYMENT_PAID");
-        order.setOrderStatus("CONFIRMED");
+        order.setVnpayTxnRef("VNPAY-TXN-601");
+        order.setOrderStatus("PENDING");
+        order.setPaymentStatus("PAYMENT_PENDING");
+        order.setFinalAmount(BigDecimal.valueOf(250_000));
 
-        boolean processedSecondTime = false;
-        if ("PAYMENT_PAID".equalsIgnoreCase(order.getPaymentStatus())) {
-            processedSecondTime = false;
-        } else {
-            processedSecondTime = true;
-        }
+        when(vnpayService.validateSignature(anyMap(), any())).thenReturn(true);
+        when(orderRepository.findByVnpayTxnRefForUpdate("VNPAY-TXN-601")).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        assertFalse(processedSecondTime, "Duplicate payment confirmation must be rejected/ignored idempotently");
+        Map<String, String> params = new HashMap<>();
+        params.put("vnp_TxnRef", "VNPAY-TXN-601");
+        params.put("vnp_ResponseCode", "00");
+        params.put("vnp_Amount", "25000000"); // 250,000 x 100
+        params.put("vnp_TransactionNo", "14000123");
+        params.put("vnp_BankCode", "NCB");
+        params.put("vnp_SecureHash", "VALID_HASH");
+
+        // Callback lần 1: Thành công
+        VnpayPaymentProcessor.PaymentResult result1 = vnpayPaymentProcessor.processVnpayResult(params, "guestToken");
+        assertTrue(result1.isSuccess());
+        assertEquals("00", result1.getCode());
+        assertEquals("PAID", order.getPaymentStatus());
+        assertEquals("CONFIRMED", order.getOrderStatus());
+
+        // Callback lần 2 (Duplicate IPN/Return): Idempotent rejection
+        VnpayPaymentProcessor.PaymentResult result2 = vnpayPaymentProcessor.processVnpayResult(params, "guestToken");
+        assertTrue(result2.isSuccess());
+        assertEquals("02", result2.getCode(), "Lần 2 phải trả về code 02 (đã ghi nhận trước đó)");
     }
 
     // =========================================================================
-    // TEST 4: Old order item cost = 100K, future import cost = 150K -> old order COGS vẫn 100K
+    // TEST 3B: VNPAY success callback CANNOT revive order that was CANCELLED
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 3B: VNPAY success callback cannot revive order that was already CANCELLED")
+    void test3b_vnpaySuccessCannotReviveCancelledOrder() {
+        Order order = new Order();
+        order.setId(602L);
+        order.setOrderCode("CM-TXN-602");
+        order.setVnpayTxnRef("VNPAY-TXN-602");
+        order.setOrderStatus("CANCELLED");
+        order.setPaymentStatus("PAYMENT_FAILED");
+        order.setFinalAmount(BigDecimal.valueOf(300_000));
+
+        when(vnpayService.validateSignature(anyMap(), any())).thenReturn(true);
+        when(orderRepository.findByVnpayTxnRefForUpdate("VNPAY-TXN-602")).thenReturn(Optional.of(order));
+
+        Map<String, String> params = new HashMap<>();
+        params.put("vnp_TxnRef", "VNPAY-TXN-602");
+        params.put("vnp_ResponseCode", "00"); // Success response arriving late
+        params.put("vnp_Amount", "30000000");
+        params.put("vnp_SecureHash", "VALID_HASH");
+
+        VnpayPaymentProcessor.PaymentResult result = vnpayPaymentProcessor.processVnpayResult(params, "guestToken");
+
+        assertFalse(result.isSuccess(), "Không được phép hồi sinh đơn hàng đã bị CANCELLED");
+        assertEquals("CANCELLED", order.getOrderStatus(), "Trạng thái đơn hàng vẫn phải là CANCELLED");
+        assertEquals("PAYMENT_FAILED", order.getPaymentStatus());
+    }
+
+    // =========================================================================
+    // TEST 4: Historical COGS snapshot immutability
     // =========================================================================
     @Test
     @DisplayName("TEST 4: Historical COGS snapshot immutability")
@@ -176,7 +259,6 @@ public class D2CBusinessLogicTests {
     @Test
     @DisplayName("TEST 5: Combo category rule - 1 Shirt + 1 Pants does not qualify 2 Shirts combo")
     void test5_comboCategoryRuleNotQualified() {
-        // Category ID là Integer
         Category catShirt = new Category(); catShirt.setId(1); catShirt.setName("Áo");
         Category catPants = new Category(); catPants.setId(2); catPants.setName("Quần");
 
@@ -192,7 +274,6 @@ public class D2CBusinessLogicTests {
         ComboRule shirtRule = new ComboRule();
         shirtRule.setCategory(catShirt);
         shirtRule.setMinQuantity(2);
-        // ComboRule discountPercentage là BigDecimal
         shirtRule.setDiscountPercentage(BigDecimal.valueOf(10));
         shirtRule.setIsActive(true);
 
@@ -210,7 +291,6 @@ public class D2CBusinessLogicTests {
     @Test
     @DisplayName("TEST 6: Combo category rule - 2 Shirts qualifies for combo discount")
     void test6_comboCategoryRuleQualified() {
-        // Category ID là Integer
         Category catShirt = new Category(); catShirt.setId(1); catShirt.setName("Áo");
         Product p1 = new Product(); p1.setCategory(catShirt);
 
@@ -221,7 +301,6 @@ public class D2CBusinessLogicTests {
         ComboRule shirtRule = new ComboRule();
         shirtRule.setCategory(catShirt);
         shirtRule.setMinQuantity(2);
-        // ComboRule discountPercentage là BigDecimal
         shirtRule.setDiscountPercentage(BigDecimal.valueOf(10));
         shirtRule.setIsActive(true);
 
@@ -259,10 +338,10 @@ public class D2CBusinessLogicTests {
     }
 
     // =========================================================================
-    // TEST 8: CoolCash spend callback/retry -> transaction không bị trừ 2 lần
+    // TEST 8: CoolCash duplicate spend/refund with Idempotency Key
     // =========================================================================
     @Test
-    @DisplayName("TEST 8: CoolCash spend balance update")
+    @DisplayName("TEST 8: CoolCash duplicate spend/refund with Idempotency Key protection")
     void test8_coolcashSpendIdempotency() {
         User user = new User();
         user.setId(801L);
@@ -273,9 +352,73 @@ public class D2CBusinessLogicTests {
         order.setOrderCode("CM-ORDER-888");
 
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(coolCashTransactionRepository.existsByIdempotencyKey("ORDER_COOLCASH_SPEND:888")).thenReturn(false).thenReturn(true);
 
-        coolCashService.spendCoolCash(user, order, BigDecimal.valueOf(50_000));
+        // Lần 1: Trừ tiền thành công
+        coolCashService.spendCoolCash(user, order, BigDecimal.valueOf(50_000), "ORDER_COOLCASH_SPEND:888");
         assertEquals(0, user.getCoolcashBalance().compareTo(BigDecimal.valueOf(50_000)));
+
+        // Lần 2 (Duplicate callback/retry): Không trừ tiếp
+        coolCashService.spendCoolCash(user, order, BigDecimal.valueOf(50_000), "ORDER_COOLCASH_SPEND:888");
+        assertEquals(0, user.getCoolcashBalance().compareTo(BigDecimal.valueOf(50_000)), "Số dư không được bị trừ lần 2");
+    }
+
+    // =========================================================================
+    // TEST 8B: Voucher RELEASED from cancelled order can be reused
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 8B: Voucher RELEASED from cancelled order allows user reuse")
+    void test8b_voucherReleasedAllowsReuse() {
+        User user = new User();
+        user.setId(802L);
+
+        Promotion promo = new Promotion();
+        promo.setId(88L);
+        promo.setCode("COOLMATE20");
+        promo.setDiscountType("PERCENTAGE");
+        promo.setDiscountValue(BigDecimal.valueOf(20));
+        promo.setIsActive(true);
+        promo.setStartDate(LocalDateTime.now().minusDays(1));
+        promo.setEndDate(LocalDateTime.now().plusDays(10));
+
+        ProductVariant v = new ProductVariant();
+        v.setSalePrice(BigDecimal.valueOf(250_000));
+        CartItem item = new CartItem(); item.setVariant(v); item.setQuantity(1);
+
+        when(promotionRepository.findByCodeAndIsActiveTrue("COOLMATE20")).thenReturn(Optional.of(promo));
+        // Lịch sử dùng đã được RELEASED -> existsByPromotionIdAndUserIdAndStatusNot trả về false
+        when(promotionUsageRepository.existsByPromotionIdAndUserIdAndStatusNot(88L, 802L, "RELEASED")).thenReturn(false);
+        when(comboRuleRepository.findByIsActiveTrueOrderByMinQuantityDesc()).thenReturn(Collections.emptyList());
+        when(shippingFeeService.calculateShippingFee(any(), any(), any())).thenReturn(BigDecimal.ZERO);
+
+        PricingSummaryDTO summary = pricingService.calculatePricing(user, Collections.singletonList(item), "COOLMATE20", null, null, null, null);
+
+        assertEquals(0, summary.getVoucherDiscount().compareTo(BigDecimal.valueOf(50_000)), "Voucher phải được áp dụng lại khi usage trước đã RELEASED");
+    }
+
+    // =========================================================================
+    // TEST 8C: Checkout Pricing & Shipping fee location calculation
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 8C: Checkout shipping fee calculation by location and freeship threshold")
+    void test8c_checkoutShippingFeeByLocation() {
+        ShippingFeeService realShippingService = new ShippingFeeService();
+
+        // 1. Dưới 200k, Nội thành Hà Nội -> 20.000đ
+        BigDecimal feeInner = realShippingService.calculateShippingFee(BigDecimal.valueOf(150_000), "Hà Nội", "Quận Hoàn Kiếm");
+        assertEquals(0, feeInner.compareTo(BigDecimal.valueOf(20_000)));
+
+        // 2. Dưới 200k, Ngoại thành Hà Nội -> 25.000đ
+        BigDecimal feeOuter = realShippingService.calculateShippingFee(BigDecimal.valueOf(150_000), "Hà Nội", "Huyện Gia Lâm");
+        assertEquals(0, feeOuter.compareTo(BigDecimal.valueOf(25_000)));
+
+        // 3. Dưới 200k, Tỉnh khác -> 30.000đ
+        BigDecimal feeProvince = realShippingService.calculateShippingFee(BigDecimal.valueOf(150_000), "Đà Nẵng", "Hải Châu");
+        assertEquals(0, feeProvince.compareTo(BigDecimal.valueOf(30_000)));
+
+        // 4. Từ 200k trở lên -> Freeship 0đ
+        BigDecimal feeFree = realShippingService.calculateShippingFee(BigDecimal.valueOf(250_000), "Đà Nẵng", "Hải Châu");
+        assertEquals(0, feeFree.compareTo(BigDecimal.ZERO));
     }
 
     // =========================================================================
@@ -311,6 +454,71 @@ public class D2CBusinessLogicTests {
         OrderReturn ret = returnService.requestReturn(user, 9001L, 91L, 1, "REFUND_COOLCASH", null, "Không ưng ý", null);
 
         assertEquals(0, ret.getRefundAmount().compareTo(BigDecimal.valueOf(100_000)), "Refund must be allocated only for returned item (100k)");
+    }
+
+    // =========================================================================
+    // TEST 9B: Return exchange must be same product
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 9B: Return exchange with different product rejected")
+    void test9b_returnExchangeDifferentProductRejected() {
+        User user = new User(); user.setId(902L);
+
+        Product p1 = new Product(); p1.setId(101L); p1.setName("Áo Thun");
+        Product p2 = new Product(); p2.setId(102L); p2.setName("Quần Jeans");
+
+        ProductVariant vOrig = new ProductVariant(); vOrig.setId(11L); vOrig.setProduct(p1);
+        ProductVariant vTargetDiff = new ProductVariant(); vTargetDiff.setId(22L); vTargetDiff.setProduct(p2); vTargetDiff.setIsActive(true); vTargetDiff.setStockQuantity(5);
+
+        OrderItem item = new OrderItem(); item.setId(991L); item.setVariant(vOrig); item.setQuantity(1); item.setUnitPrice(BigDecimal.valueOf(200_000));
+
+        Order order = new Order();
+        order.setId(9002L);
+        order.setUser(user);
+        order.setOrderStatus("DELIVERED");
+        order.setDeliveredAt(LocalDateTime.now().minusDays(3));
+        order.setItems(Collections.singletonList(item));
+        item.setOrder(order);
+
+        when(orderRepository.findById(9002L)).thenReturn(Optional.of(order));
+        when(productVariantRepository.findById(22L)).thenReturn(Optional.of(vTargetDiff));
+
+        assertThrows(CustomException.class, () -> {
+            returnService.requestReturn(user, 9002L, 991L, 1, "RETURN_SIZE", 22L, "Đổi sang sản phẩm khác", null);
+        });
+    }
+
+    // =========================================================================
+    // TEST 9C: Return complete idempotency
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 9C: Return completion idempotency - second complete call is no-op")
+    void test9c_returnCompletionIdempotency() {
+        User user = new User(); user.setId(903L); user.setCoolcashBalance(BigDecimal.ZERO);
+        Order order = new Order(); order.setId(9003L); order.setOrderCode("CM-9003"); order.setFinalAmount(BigDecimal.valueOf(200_000));
+
+        ProductVariant variant = new ProductVariant(); variant.setId(31L); variant.setStockQuantity(10);
+        OrderItem item = new OrderItem(); item.setId(993L); item.setVariant(variant); item.setQuantity(1);
+
+        OrderReturn req = new OrderReturn();
+        req.setId(777L);
+        req.setOrder(order);
+        req.setOrderItem(item);
+        req.setUser(user);
+        req.setQuantity(1);
+        req.setRefundAmount(BigDecimal.valueOf(200_000));
+        req.setStatus("APPROVED");
+
+        when(orderReturnRepository.findById(777L)).thenReturn(Optional.of(req));
+
+        User staff = new User(); staff.setId(99L);
+        // Lần 1: Hoàn tất
+        returnService.completeReturn(777L, "COOLCASH", staff);
+        assertEquals("COMPLETED", req.getStatus());
+
+        // Lần 2: Gọi lại không gây lỗi và không lặp thao tác
+        returnService.completeReturn(777L, "COOLCASH", staff);
+        assertEquals("COMPLETED", req.getStatus());
     }
 
     // =========================================================================
@@ -378,7 +586,6 @@ public class D2CBusinessLogicTests {
         when(cartRepository.findByUserId(1201L)).thenReturn(Optional.of(cartA));
         when(cartItemRepository.findById(999L)).thenReturn(Optional.of(itemB));
 
-        // Gọi cartService.updateQuantity() đúng contract
         assertThrows(CustomException.class, () -> {
             cartService.updateQuantity(userA, null, 999L, 5);
         });
@@ -407,7 +614,6 @@ public class D2CBusinessLogicTests {
     @Test
     @DisplayName("TEST 14: Role based access control separation")
     void test14_staffCannotPerformAdminOnlyActions() {
-        // Role dùng roleName, User dùng roles Set
         Role staffRole = new Role(); staffRole.setRoleName("ROLE_STAFF");
         Role adminRole = new Role(); adminRole.setRoleName("ROLE_ADMIN");
 

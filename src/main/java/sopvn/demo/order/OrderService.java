@@ -8,7 +8,12 @@ import sopvn.demo.core.exception.CustomException;
 import sopvn.demo.core.service.NotificationService;
 import sopvn.demo.entity.*;
 import sopvn.demo.inventory.StockService;
-import sopvn.demo.repository.*;
+import sopvn.demo.repository.OrderItemRepository;
+import sopvn.demo.repository.OrderRepository;
+import sopvn.demo.repository.ProductVariantRepository;
+import sopvn.demo.repository.PromotionRepository;
+import sopvn.demo.repository.PromotionUsageRepository;
+import sopvn.demo.repository.UserRepository;
 import sopvn.demo.wallet.CoolCashService;
 
 import java.math.BigDecimal;
@@ -56,8 +61,8 @@ public class OrderService {
 
     @Transactional
     public Order createOrder(User user, String recipientName, String phone, String email, String address, 
-                            String note, String paymentMethod, String voucherCode, boolean useCoolCash, 
-                            List<CartItem> cartItems) {
+                            String province, String district, String note, String paymentMethod, 
+                            String voucherCode, boolean useCoolCash, List<CartItem> cartItems) {
         if (recipientName == null || recipientName.isBlank()) throw new CustomException("Tên người nhận không được để trống.");
         if (phone == null || phone.isBlank()) throw new CustomException("Số điện thoại nhận hàng không được để trống.");
         if (address == null || address.isBlank()) throw new CustomException("Địa chỉ giao hàng không được để trống.");
@@ -79,7 +84,7 @@ public class OrderService {
         }
 
         BigDecimal requestedCoolCash = (useCoolCash && user != null) ? user.getCoolcashBalance() : BigDecimal.ZERO;
-        PricingSummaryDTO pricing = pricingService.calculatePricing(user, validItems, voucherCode, requestedCoolCash, null, null, paymentMethod);
+        PricingSummaryDTO pricing = pricingService.calculatePricing(user, validItems, voucherCode, requestedCoolCash, province, district, paymentMethod);
 
         Order order = new Order();
         String orderCode = "CM" + System.currentTimeMillis();
@@ -137,7 +142,7 @@ public class OrderService {
         // 3. Giữ tồn kho nguyên tử (Stock Reservation)
         stockService.reserveStock(savedItems, order);
 
-        // 4. CoolCash & Voucher Handling (LỖI 5 & 6)
+        // 4. CoolCash & Voucher Handling
         if ("COD".equalsIgnoreCase(paymentMethod)) {
             // COD: Trừ CoolCash ngay nếu có
             if (user != null && pricing.getCoolcashUsed().compareTo(BigDecimal.ZERO) > 0) {
@@ -153,7 +158,10 @@ public class OrderService {
                 promotionUsageRepository.save(usage);
             }
         } else {
-            // VNPAY: Chỉ RESERVED voucher và CoolCash, đợi VNPAY callback thành công mới FINALIZE (LỖI 5 & 6)
+            // VNPAY: Tạm giữ CoolCash và Voucher ở trạng thái RESERVED
+            if (user != null && pricing.getCoolcashUsed().compareTo(BigDecimal.ZERO) > 0) {
+                coolCashService.reserveCoolCash(user, order, pricing.getCoolcashUsed(), "ORDER_COOLCASH_RESERVE:" + order.getId());
+            }
             if (pricing.getAppliedPromotion() != null) {
                 Promotion promo = pricing.getAppliedPromotion();
                 PromotionUsage usage = new PromotionUsage(promo, user, order, pricing.getVoucherDiscount(), "RESERVED");
@@ -166,47 +174,52 @@ public class OrderService {
     }
 
     @Transactional
-    public void cancelOrder(Long orderId, User requestUser, String reason) {
+    public Order createOrder(User user, String recipientName, String phone, String email, String address, 
+                            String note, String paymentMethod, String voucherCode, boolean useCoolCash, 
+                            List<CartItem> cartItems) {
+        return createOrder(user, recipientName, phone, email, address, null, null, note, paymentMethod, voucherCode, useCoolCash, cartItems);
+    }
+
+    @Transactional
+    public void cancelOrder(Long orderId, User currentUser, String reason) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new CustomException("Không tìm thấy đơn hàng #" + orderId));
-
-        if (requestUser != null && !requestUser.hasRole("ROLE_ADMIN") && !requestUser.hasRole("ROLE_STAFF")) {
-            if (order.getUser() == null || !order.getUser().getId().equals(requestUser.getId())) {
-                throw new CustomException("Bạn không có quyền hủy đơn hàng này.");
-            }
-        }
 
         if ("CANCELLED".equalsIgnoreCase(order.getOrderStatus())) {
             return;
         }
 
-        if ("SHIPPING".equalsIgnoreCase(order.getOrderStatus()) || 
-            "DELIVERED".equalsIgnoreCase(order.getOrderStatus()) || 
-            "COMPLETED".equalsIgnoreCase(order.getOrderStatus())) {
-            throw new CustomException("Đơn hàng đang giao hoặc đã hoàn tất, không thể hủy.");
+        if ("COMPLETED".equalsIgnoreCase(order.getOrderStatus()) || "SHIPPING".equalsIgnoreCase(order.getOrderStatus())) {
+            throw new CustomException("Không thể hủy đơn hàng đang giao hoặc đã hoàn tất.");
+        }
+
+        if (currentUser != null && order.getUser() != null && !currentUser.getId().equals(order.getUser().getId())) {
+            boolean isStaffOrAdmin = currentUser.hasRole("ROLE_ADMIN") || currentUser.hasRole("ROLE_STAFF");
+            if (!isStaffOrAdmin) {
+                throw new CustomException("Bạn không có quyền hủy đơn hàng của người khác.");
+            }
         }
 
         order.setOrderStatus("CANCELLED");
         order.setCancelledAt(LocalDateTime.now());
-        order.setCancelledReason(reason != null ? reason : "Hủy đơn hàng");
+        order.setCancelledReason(reason != null ? reason : "Người dùng hoặc quản trị viên hủy đơn");
         order.setUpdatedAt(LocalDateTime.now());
         orderRepository.save(order);
 
-        // 1. Release tồn kho
+        // 1. Giải phóng tồn kho đã giữ
         stockService.releaseStock(order);
 
-        // 2. Release voucher usage (LỖI 6)
+        // 2. Release Voucher usage để khách có thể tái sử dụng
         List<PromotionUsage> usages = promotionUsageRepository.findByOrderId(order.getId());
         for (PromotionUsage u : usages) {
             u.setStatus("RELEASED");
             promotionUsageRepository.save(u);
         }
 
-        // 3. Hoàn lại CoolCash đã chi tiêu
+        // 3. Hoàn lại CoolCash đã giữ hoặc đã chi tiêu
         if (order.getUser() != null && order.getCoolcashUsed() != null && order.getCoolcashUsed().compareTo(BigDecimal.ZERO) > 0) {
-            coolCashService.refundCoolCash(order.getUser(), order, order.getCoolcashUsed(), 
-                    "Hoàn lại số dư ví do hủy đơn hàng #" + order.getOrderCode(),
-                    "ORDER_COOLCASH_REFUND:" + order.getId());
+            coolCashService.releaseReservedCoolCash(order.getUser(), order, order.getCoolcashUsed(), 
+                    "ORDER_COOLCASH_RELEASE:" + order.getId());
         }
 
         notificationService.notifyOrderCancelled(order, reason);
@@ -231,7 +244,7 @@ public class OrderService {
         }
         order.setUpdatedAt(LocalDateTime.now());
 
-        // Trao thưởng CoolCash theo hạng
+        // Trao thưởng CoolCash theo hạng thành viên
         User user = order.getUser();
         if (user != null) {
             String tier = user.getMembershipTier() != null ? user.getMembershipTier().toUpperCase() : "NEW";
@@ -277,7 +290,6 @@ public class OrderService {
             return;
         }
 
-        // LỖI 13: Enforce strict state machine transitions
         if ("CANCELLED".equals(currentStatus) || "COMPLETED".equals(currentStatus)) {
             throw new CustomException("Đơn hàng đã ở trạng thái kết thúc (" + currentStatus + "), không thể thay đổi.");
         }

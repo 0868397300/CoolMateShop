@@ -199,6 +199,7 @@ CREATE TABLE [dbo].[CoolCash_Transactions](
 	[amount] [decimal](18, 2) NOT NULL,
 	[transaction_type] [varchar](30) NOT NULL,
 	[status] [varchar](20) NOT NULL,
+	[idempotency_key] [nvarchar](100) NULL,
 	[description] [nvarchar](255) NOT NULL,
 	[created_at] [datetime2](7) NOT NULL,
 PRIMARY KEY CLUSTERED 
@@ -1371,3 +1372,12 @@ GO
 PRINT '=========================================================';
 PRINT 'MIGRATION COMPLETED SUCCESSFULLY FOR COOLMATE D2C ENGINE';
 PRINT '=========================================================';
+
+-- Unique index for CoolCash idempotency
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_CoolCash_IdempotencyKey' AND object_id = OBJECT_ID(N'[dbo].[CoolCash_Transactions]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [UQ_CoolCash_IdempotencyKey] ON [dbo].[CoolCash_Transactions]([idempotency_key]) 
+    WHERE [idempotency_key] IS NOT NULL;
+    PRINT 'Created unique index UQ_CoolCash_IdempotencyKey';
+END
+GO

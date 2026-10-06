@@ -128,7 +128,7 @@
                             </div>
 
                             <!-- Tùy chọn lưu địa chỉ -->
-                            <div class="col-12">
+                            <div class="col-12" th:if="${user != null}">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="saveAddress" value="true" id="chkSaveAddr" checked>
                                     <label class="form-check-label small" for="chkSaveAddr">
@@ -151,7 +151,7 @@
                     </div>
 
                     <!-- Payment Method -->
-                    <div class="checkout-box">
+                    <div class="checkout-box mb-4">
                         <h5 class="fw-bold mb-3"><i class="bi bi-credit-card me-2 text-primary"></i>Phương Thức Thanh Toán</h5>
                         
                         <div class="d-flex flex-column gap-3">
@@ -195,32 +195,62 @@
                             </div>
                         </div>
 
-                        <!-- Calculations -->
+                        <!-- Voucher Code & CoolCash Inputs -->
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold"><i class="bi bi-ticket-perforated text-primary me-1"></i>Mã giảm giá Voucher</label>
+                            <div class="input-group">
+                                <input type="text" name="voucherCode" id="voucherCodeInput" class="form-control text-uppercase" placeholder="Nhập mã voucher..." th:value="${voucherCode}">
+                                <button type="button" class="btn btn-outline-dark" id="btnApplyVoucher">Áp dụng</button>
+                            </div>
+                        </div>
+
+                        <div class="mb-3 p-3 bg-light rounded-3" th:if="${user != null and user.coolcashBalance != null and user.coolcashBalance > 0}">
+                            <div class="form-check form-switch d-flex align-items-center justify-content-between ps-0">
+                                <div>
+                                    <label class="form-check-label fw-bold small d-block" for="useCoolCashSwitch">
+                                        <i class="bi bi-wallet2 text-success me-1"></i>Sử dụng ví CoolCash
+                                    </label>
+                                    <small class="text-muted">Số dư khả dụng: <strong class="text-success" th:text="${#numbers.formatDecimal(user.coolcashBalance, 0, 'COMMA', 0, 'POINT')} + 'đ'">100,000đ</strong> (Tối đa 50% đơn)</small>
+                                </div>
+                                <input class="form-check-input ms-2" type="checkbox" name="useCoolCash" value="true" id="useCoolCashSwitch" th:checked="${useCoolCash}">
+                            </div>
+                        </div>
+
+                        <!-- Calculations from Server Source of Truth -->
                         <div class="d-flex justify-content-between mb-2 small">
                             <span class="text-muted">Tạm tính tiền hàng:</span>
-                            <strong id="displaySubtotal" th:attr="data-val=${cart.subtotal}" th:text="${#numbers.formatDecimal((cart.subtotal != null ? cart.subtotal : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</strong>
+                            <strong id="displaySubtotal" th:attr="data-val=${pricing.subtotal}" th:text="${#numbers.formatDecimal((pricing.subtotal != null ? pricing.subtotal : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</strong>
                         </div>
-                        <div class="d-flex justify-content-between mb-2 small" th:if="${cart.comboDiscount > 0}">
-                            <span class="text-success"><i class="bi bi-tag-fill me-1"></i>Giảm giá Combo Mix &amp; Match:</span>
-                            <strong class="text-success" th:text="'-' + ${#numbers.formatDecimal((cart.comboDiscount != null ? cart.comboDiscount : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">-24,000đ</strong>
+                        <div class="d-flex justify-content-between mb-2 small" th:if="${pricing.comboDiscount != null and pricing.comboDiscount > 0}">
+                            <span class="text-success"><i class="bi bi-tag-fill me-1"></i>Giảm giá Combo:</span>
+                            <strong id="displayComboDiscount" class="text-success" th:attr="data-val=${pricing.comboDiscount}" th:text="'-' + ${#numbers.formatDecimal(pricing.comboDiscount, 0, 'COMMA', 0, 'POINT')} + 'đ'">-24,000đ</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2 small" th:if="${pricing.voucherDiscount != null and pricing.voucherDiscount > 0}">
+                            <span class="text-success"><i class="bi bi-ticket-perforated-fill me-1"></i>Giảm giá Voucher:</span>
+                            <strong id="displayVoucherDiscount" class="text-success" th:attr="data-val=${pricing.voucherDiscount}" th:text="'-' + ${#numbers.formatDecimal(pricing.voucherDiscount, 0, 'COMMA', 0, 'POINT')} + 'đ'">-30,000đ</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2 small" th:if="${pricing.coolcashUsed != null and pricing.coolcashUsed > 0}">
+                            <span class="text-primary"><i class="bi bi-wallet2 me-1"></i>Trừ ví CoolCash:</span>
+                            <strong id="displayCoolcashUsed" class="text-primary" th:attr="data-val=${pricing.coolcashUsed}" th:text="'-' + ${#numbers.formatDecimal(pricing.coolcashUsed, 0, 'COMMA', 0, 'POINT')} + 'đ'">-50,000đ</strong>
                         </div>
                         <div class="d-flex justify-content-between mb-2 small">
                             <span class="text-muted">Phí vận chuyển giao hàng:</span>
-                            <span id="displayShippingFee" class="fw-bold text-primary">
-                                <span th:if="${cart.isFreeshipQualified}" class="text-success">0đ (Freeship)</span>
-                                <span th:unless="${cart.isFreeshipQualified}" th:text="${#numbers.formatDecimal((cart.shippingFee != null ? cart.shippingFee : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">25,000đ</span>
+                            <span id="displayShippingFee" class="fw-bold text-primary" th:attr="data-val=${pricing.shippingFee}">
+                                <span th:if="${pricing.freeshipQualified}" class="text-success">0đ (Freeship)</span>
+                                <span th:unless="${pricing.freeshipQualified}" th:text="${#numbers.formatDecimal((pricing.shippingFee != null ? pricing.shippingFee : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">25,000đ</span>
                             </span>
                         </div>
                         <div id="shippingNote" class="small text-muted mb-3" style="font-size: 0.8rem;">
-                            <span th:if="${cart.isFreeshipQualified}" class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Đơn hàng từ 200K được Miễn Phí Vận Chuyển toàn quốc.</span>
-                            <span th:unless="${cart.isFreeshipQualified}">Phí vận chuyển tự động tính dựa trên tỉnh/thành giao hàng.</span>
+                            <span th:if="${pricing.freeshipQualified}" class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Đơn hàng từ 200K được Miễn Phí Vận Chuyển toàn quốc.</span>
+                            <span th:unless="${pricing.freeshipQualified}">Phí vận chuyển tự động tính dựa trên tỉnh/thành giao hàng.</span>
                         </div>
 
                         <hr class="my-3">
 
+                        <!-- Tổng thanh toán: subtotal - combo - voucher - CoolCash + shipping -->
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <span class="fw-bold">Tổng Thanh Toán:</span>
-                            <span class="fs-4 fw-bold text-primary" id="displayFinalTotal" th:text="${#numbers.formatDecimal((cart.finalTotal != null ? cart.finalTotal : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</span>
+                            <span class="fs-4 fw-bold text-primary" id="displayFinalTotal" th:text="${#numbers.formatDecimal((pricing.finalAmount != null ? pricing.finalAmount : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</span>
                         </div>
 
                         <button type="submit" class="btn btn-dark btn-lg w-100 rounded-pill fw-bold py-3">
@@ -234,7 +264,6 @@
 
     <!-- Scripts: Administrative Divisions & Shipping Calculation -->
     <script>
-        // Data provinces fallback if offline
         const fallbackProvinces = [
             { code: 1, name: "Thành phố Hà Nội", districts: ["Quận Ba Đình", "Quận Hoàn Kiếm", "Quận Đống Đa", "Quận Cầu Giấy", "Quận Hai Bà Trưng", "Quận Hoàng Mai", "Quận Long Biên", "Quận Nam Từ Liêm", "Quận Bắc Từ Liêm", "Huyện Thanh Trì", "Huyện Gia Lâm"] },
             { code: 79, name: "Thành phố Hồ Chí Minh", districts: ["Quận 1", "Quận 3", "Quận 4", "Quận 5", "Quận 6", "Quận 7", "Quận 8", "Quận 10", "Quận 11", "Quận 12", "Quận Bình Thạnh", "Quận Tân Bình", "Quận Tân Phú", "Quận Phú Nhuận", "Quận Gò Vấp", "Thành phố Thủ Đức", "Huyện Bình Chánh", "Huyện Hóc Môn", "Huyện Củ Chi", "Huyện Nhà Bè"] },
@@ -256,17 +285,16 @@
         const displayTotal = document.getElementById('displayFinalTotal');
         const shippingNote = document.getElementById('shippingNote');
 
-        const subtotalVal = parseFloat(displaySubtotal.getAttribute('data-val')) || 0;
+        const subtotalVal = parseFloat(displaySubtotal ? displaySubtotal.getAttribute('data-val') : 0) || 0;
+        const comboDiscountVal = parseFloat(document.getElementById('displayComboDiscount')?.getAttribute('data-val') || 0);
+        const voucherDiscountVal = parseFloat(document.getElementById('displayVoucherDiscount')?.getAttribute('data-val') || 0);
+        const coolcashUsedVal = parseFloat(document.getElementById('displayCoolcashUsed')?.getAttribute('data-val') || 0);
 
         // Load Provinces from Open API with Fallback
         fetch('https://provinces.open-api.vn/api/?depth=1')
             .then(res => res.json())
-            .then(data => {
-                populateProvinces(data);
-            })
-            .catch(() => {
-                populateProvinces(fallbackProvinces);
-            });
+            .then(data => populateProvinces(data))
+            .catch(() => populateProvinces(fallbackProvinces));
 
         function populateProvinces(data) {
             provinceSelect.innerHTML = '<option value="">-- Chọn Tỉnh / Thành phố --</option>';
@@ -295,7 +323,6 @@
             }
 
             districtSelect.disabled = false;
-            // Fetch Districts
             if (pCode && pCode != 0) {
                 fetch(`https://provinces.open-api.vn/api/p/${pCode}?depth=2`)
                     .then(r => r.json())
@@ -381,7 +408,8 @@
         }
 
         function recalculateShipping(province, district) {
-            fetch(`/api/shipping/calculate?subtotal=${subtotalVal}&province=${encodeURIComponent(province)}&district=${encodeURIComponent(district)}`)
+            const eligibleForShip = Math.max(0, subtotalVal - comboDiscountVal);
+            fetch(`/api/shipping/calculate?subtotal=${eligibleForShip}&province=${encodeURIComponent(province)}&district=${encodeURIComponent(district)}`)
                 .then(r => r.json())
                 .then(data => {
                     const fee = data.shippingFee;
@@ -390,7 +418,7 @@
                     } else {
                         displayShipping.innerHTML = new Intl.NumberFormat('vi-VN').format(fee) + 'đ';
                     }
-                    const newTotal = subtotalVal + fee;
+                    const newTotal = Math.max(0, subtotalVal - comboDiscountVal - voucherDiscountVal - coolcashUsedVal + fee);
                     displayTotal.textContent = new Intl.NumberFormat('vi-VN').format(newTotal) + 'đ';
                     shippingNote.innerHTML = `<span class="${data.isFreeship ? 'text-success' : 'text-primary'}"><i class="bi bi-info-circle me-1"></i>${data.message}</span>`;
                 })
@@ -415,6 +443,9 @@
                     if (savedAddrRadios.length > 0) {
                         savedAddrRadios[0].checked = true;
                         savedAddrRadios[0].closest('.address-card-item').classList.add('active');
+                        const p = savedAddrRadios[0].getAttribute('data-province') || '';
+                        const d = savedAddrRadios[0].getAttribute('data-district') || '';
+                        recalculateShipping(p, d);
                     }
                     btnToggleNewAddr.innerHTML = '<i class="bi bi-plus me-1"></i>Giao đến địa chỉ khác';
                 }
@@ -434,6 +465,24 @@
                 }
             });
         });
+
+        // Áp dụng voucher hoặc bật/tắt CoolCash reload lại trang tính toán chuẩn server
+        const btnApplyVoucher = document.getElementById('btnApplyVoucher');
+        if (btnApplyVoucher) {
+            btnApplyVoucher.addEventListener('click', function() {
+                const vCode = document.getElementById('voucherCodeInput').value.trim();
+                const useCc = document.getElementById('useCoolCashSwitch') ? document.getElementById('useCoolCashSwitch').checked : false;
+                window.location.href = `/thanh-toan/checkout?voucherCode=${encodeURIComponent(vCode)}&useCoolCash=${useCc}`;
+            });
+        }
+
+        const useCoolCashSwitch = document.getElementById('useCoolCashSwitch');
+        if (useCoolCashSwitch) {
+            useCoolCashSwitch.addEventListener('change', function() {
+                const vCode = document.getElementById('voucherCodeInput').value.trim();
+                window.location.href = `/thanh-toan/checkout?voucherCode=${encodeURIComponent(vCode)}&useCoolCash=${this.checked}`;
+            });
+        }
 
         // Highlight selected payment method
         document.querySelectorAll('.payment-option-card').forEach(card => {

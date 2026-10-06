@@ -220,3 +220,18 @@ END
 GO
 
 PRINT 'D2C Database Migration completed successfully!';
+
+-- Add idempotency_key to CoolCash_Transactions
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CoolCash_Transactions]') AND name = 'idempotency_key')
+BEGIN
+    ALTER TABLE [dbo].[CoolCash_Transactions] ADD [idempotency_key] NVARCHAR(100) NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'UQ_CoolCash_IdempotencyKey' AND object_id = OBJECT_ID(N'[dbo].[CoolCash_Transactions]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [UQ_CoolCash_IdempotencyKey]
+    ON [dbo].[CoolCash_Transactions]([idempotency_key])
+    WHERE [idempotency_key] IS NOT NULL;
+END
+GO

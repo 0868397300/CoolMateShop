@@ -52,7 +52,7 @@ public class Product {
     private BigDecimal basePrice;
 
     @Column(name = "rating_avg", precision = 3, scale = 2, nullable = false)
-    private BigDecimal ratingAvg = BigDecimal.valueOf(5.0);
+    private BigDecimal ratingAvg = BigDecimal.ZERO;
 
     @Column(name = "review_count", nullable = false)
     private Integer reviewCount = 0;

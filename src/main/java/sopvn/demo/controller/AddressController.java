@@ -4,12 +4,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import sopvn.demo.entity.User;
 import sopvn.demo.entity.UserAddress;
+import sopvn.demo.order.ShippingFeeService;
 import sopvn.demo.repository.UserAddressRepository;
 import sopvn.demo.repository.UserRepository;
 
 import java.math.BigDecimal;
 import java.security.Principal;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
@@ -17,20 +20,16 @@ public class AddressController {
 
     private final UserAddressRepository userAddressRepository;
     private final UserRepository userRepository;
+    private final ShippingFeeService shippingFeeService;
 
-    public AddressController(UserAddressRepository userAddressRepository, UserRepository userRepository) {
+    public AddressController(UserAddressRepository userAddressRepository,
+                             UserRepository userRepository,
+                             ShippingFeeService shippingFeeService) {
         this.userAddressRepository = userAddressRepository;
         this.userRepository = userRepository;
+        this.shippingFeeService = shippingFeeService;
     }
 
-    /**
-     * Thuật toán tính phí vận chuyển chuẩn Coolmate:
-     * - Đơn từ 200.000đ: MIỄN PHÍ VẬN CHUYỂN (Freeship 0đ).
-     * - Đơn dưới 200.000đ:
-     *   + Nội thành Hà Nội / TP.HCM: 20.000đ
-     *   + Ngoại thành Hà Nội / TP.HCM: 25.000đ
-     *   + Các tỉnh thành khác: 30.000đ
-     */
     @GetMapping("/shipping/calculate")
     public ResponseEntity<Map<String, Object>> calculateShipping(
             @RequestParam(value = "subtotal", defaultValue = "0") BigDecimal subtotal,
@@ -39,41 +38,16 @@ public class AddressController {
 
         Map<String, Object> resp = new HashMap<>();
 
-        if (subtotal.compareTo(BigDecimal.valueOf(200000)) >= 0) {
-            resp.put("shippingFee", BigDecimal.ZERO);
-            resp.put("isFreeship", true);
-            resp.put("message", "Đã đạt chuẩn Miễn Phí Vận Chuyển toàn quốc!");
-            return ResponseEntity.ok(resp);
-        }
-
-        BigDecimal fee = BigDecimal.valueOf(30000); // Mặc định các tỉnh khác
-        String normProvince = province != null ? province.toLowerCase() : "";
-        String normDistrict = district != null ? district.toLowerCase() : "";
-
-        boolean isHanoiOrHcm = normProvince.contains("hà nội") || normProvince.contains("ha noi")
-                || normProvince.contains("hồ chí minh") || normProvince.contains("ho chi minh")
-                || normProvince.contains("hcm");
-
-        if (isHanoiOrHcm) {
-            // Các quận nội thành chính
-            boolean isInnerCity = normDistrict.contains("quận 1") || normDistrict.contains("quận 3")
-                    || normDistrict.contains("quận 4") || normDistrict.contains("quận 5")
-                    || normDistrict.contains("quận 10") || normDistrict.contains("tân bình")
-                    || normDistrict.contains("phú nhuận") || normDistrict.contains("bình thạnh")
-                    || normDistrict.contains("hoàn kiếm") || normDistrict.contains("ba đình")
-                    || normDistrict.contains("đống đa") || normDistrict.contains("hai bà trưng")
-                    || normDistrict.contains("cầu giấy") || normDistrict.contains("thanh xuân");
-
-            if (isInnerCity) {
-                fee = BigDecimal.valueOf(20000); // Giao nhanh nội thành
-            } else {
-                fee = BigDecimal.valueOf(25000); // Ngoại thành
-            }
-        }
+        BigDecimal fee = shippingFeeService.calculateShippingFee(subtotal, province, district);
+        boolean isFreeship = fee.compareTo(BigDecimal.ZERO) == 0;
 
         resp.put("shippingFee", fee);
-        resp.put("isFreeship", false);
-        resp.put("message", "Phí giao hàng: " + fee + "đ (Mua thêm để được Freeship từ 200.000đ)");
+        resp.put("isFreeship", isFreeship);
+        if (isFreeship) {
+            resp.put("message", "Đã đạt chuẩn Miễn Phí Vận Chuyển toàn quốc!");
+        } else {
+            resp.put("message", "Phí giao hàng: " + fee + "đ (Mua thêm để được Freeship từ 200.000đ)");
+        }
         return ResponseEntity.ok(resp);
     }
 

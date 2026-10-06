@@ -81,7 +81,6 @@ public class PricingService {
             for (ComboRule rule : activeRules) {
                 if (rule.getCategory() != null && rule.getCategory().getId() != null && rule.getCategory().getId().equals(catId)) {
                     if (qty >= rule.getMinQuantity() && !processedCategories.contains(catId)) {
-                        // rule.getDiscountPercentage() trả về BigDecimal
                         BigDecimal discPercent = rule.getDiscountPercentage() != null 
                                 ? rule.getDiscountPercentage().divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP)
                                 : BigDecimal.ZERO;
@@ -100,7 +99,7 @@ public class PricingService {
         BigDecimal eligibleAfterCombo = subtotal.subtract(comboDiscount);
         if (eligibleAfterCombo.compareTo(BigDecimal.ZERO) < 0) eligibleAfterCombo = BigDecimal.ZERO;
 
-        // 3. Tính Voucher Discount
+        // 3. Tính Voucher Discount (Chỉ tính lượt dùng hợp lệ, loại trừ RELEASED)
         BigDecimal voucherDiscount = BigDecimal.ZERO;
         if (voucherCode != null && !voucherCode.isBlank()) {
             String normCode = voucherCode.trim().toUpperCase();
@@ -123,14 +122,14 @@ public class PricingService {
                     valid = false;
                 }
                 if (promo.getUsageLimit() != null) {
-                    long used = promotionUsageRepository.countByPromotionId(promo.getId());
+                    long used = promotionUsageRepository.countByPromotionIdAndStatusNot(promo.getId(), "RELEASED");
                     if (used >= promo.getUsageLimit()) {
                         summary.getMessages().add("Mã giảm giá " + normCode + " đã hết lượt sử dụng.");
                         valid = false;
                     }
                 }
                 if (user != null && promo.getId() != null) {
-                    boolean alreadyUsed = promotionUsageRepository.existsByPromotionIdAndUserId(promo.getId(), user.getId());
+                    boolean alreadyUsed = promotionUsageRepository.existsByPromotionIdAndUserIdAndStatusNot(promo.getId(), user.getId(), "RELEASED");
                     if (alreadyUsed) {
                         summary.getMessages().add("Bạn đã từng sử dụng mã giảm giá này cho một đơn hàng trước đó.");
                         valid = false;
@@ -188,7 +187,7 @@ public class PricingService {
             summary.setRemainingToFreeShip(BigDecimal.ZERO);
         }
 
-        // 6. Tổng thanh toán cuối cùng
+        // 6. Tổng thanh toán cuối cùng: subtotal - combo - voucher - CoolCash + shipping
         BigDecimal finalAmount = eligibleAfterVoucher.subtract(coolCashUsed).add(shippingFee);
         if (finalAmount.compareTo(BigDecimal.ZERO) < 0) finalAmount = BigDecimal.ZERO;
         summary.setFinalAmount(finalAmount);

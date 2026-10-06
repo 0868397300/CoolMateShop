@@ -10,6 +10,7 @@ import sopvn.demo.repository.OrderItemRepository;
 import sopvn.demo.repository.OrderRepository;
 import sopvn.demo.repository.OrderReturnRepository;
 import sopvn.demo.repository.ProductVariantRepository;
+import sopvn.demo.repository.UserRepository;
 import sopvn.demo.wallet.CoolCashService;
 
 import java.math.BigDecimal;
@@ -29,6 +30,7 @@ public class ReturnService {
     private final StockService stockService;
     private final CoolCashService coolCashService;
     private final NotificationService notificationService;
+    private final UserRepository userRepository;
 
     public ReturnService(OrderRepository orderRepository,
                          OrderItemRepository orderItemRepository,
@@ -36,7 +38,8 @@ public class ReturnService {
                          ProductVariantRepository productVariantRepository,
                          StockService stockService,
                          CoolCashService coolCashService,
-                         NotificationService notificationService) {
+                         NotificationService notificationService,
+                         UserRepository userRepository) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderReturnRepository = orderReturnRepository;
@@ -44,6 +47,7 @@ public class ReturnService {
         this.stockService = stockService;
         this.coolCashService = coolCashService;
         this.notificationService = notificationService;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -122,6 +126,13 @@ public class ReturnService {
                 throw new CustomException("Biến thể muốn đổi hiện đang tạm ngưng kinh doanh.");
             }
 
+            // Quy tắc bắt buộc: Biến thể đổi sang phải thuộc cùng sản phẩm với sản phẩm ban đầu
+            Product origProduct = targetItem.getVariant() != null ? targetItem.getVariant().getProduct() : null;
+            if (origProduct == null || targetVariant.getProduct() == null 
+                    || !origProduct.getId().equals(targetVariant.getProduct().getId())) {
+                throw new CustomException("Biến thể đổi sang phải thuộc cùng sản phẩm với sản phẩm ban đầu.");
+            }
+
             if (targetVariant.getStockQuantity() < quantity) {
                 throw new CustomException("Biến thể muốn đổi trong kho chỉ còn " + targetVariant.getStockQuantity() + " chiếc, không đủ số lượng " + quantity + ".");
             }
@@ -158,46 +169,128 @@ public class ReturnService {
     }
 
     @Transactional
-    public void processReturnApproval(Long returnId, String action, String refundMethod, String rejectReason, User staffUser) {
+    public void approveReturn(Long returnId, User staffUser) {
+        OrderReturn req = orderReturnRepository.findById(returnId)
+                .orElseThrow(() -> new CustomException("Không tìm thấy yêu cầu đổi trả #" + returnId));
+        if (!"REQUESTED".equalsIgnoreCase(req.getStatus())) {
+            throw new CustomException("Chỉ có thể phê duyệt yêu cầu ở trạng thái REQUESTED (hiện tại: " + req.getStatus() + ").");
+        }
+        req.setStatus("APPROVED");
+        req.setProcessedAt(LocalDateTime.now());
+        orderReturnRepository.save(req);
+        notificationService.notifyReturnApproved(req);
+    }
+
+    @Transactional
+    public void rejectReturn(Long returnId, String rejectReason, User staffUser) {
+        OrderReturn req = orderReturnRepository.findById(returnId)
+                .orElseThrow(() -> new CustomException("Không tìm thấy yêu cầu đổi trả #" + returnId));
+        if (!"REQUESTED".equalsIgnoreCase(req.getStatus()) && !"PROCESSING".equalsIgnoreCase(req.getStatus())) {
+            throw new CustomException("Yêu cầu này đã kết thúc (" + req.getStatus() + "), không thể từ chối.");
+        }
+        req.setStatus("REJECTED");
+        req.setRejectionReason(rejectReason != null ? rejectReason.trim() : "Không đạt tiêu chuẩn kiểm định đổi trả.");
+        req.setProcessedAt(LocalDateTime.now());
+        orderReturnRepository.save(req);
+        notificationService.notifyReturnRejected(req);
+    }
+
+    @Transactional
+    public void startProcessingReturn(Long returnId, User staffUser) {
+        OrderReturn req = orderReturnRepository.findById(returnId)
+                .orElseThrow(() -> new CustomException("Không tìm thấy yêu cầu đổi trả #" + returnId));
+        if (!"APPROVED".equalsIgnoreCase(req.getStatus())) {
+            throw new CustomException("Yêu cầu phải ở trạng thái APPROVED mới có thể tiếp nhận kiểm định (PROCESSING).");
+        }
+        req.setStatus("PROCESSING");
+        orderReturnRepository.save(req);
+    }
+
+    @Transactional
+    public void completeReturn(Long returnId, String refundMethod, User staffUser) {
         OrderReturn req = orderReturnRepository.findById(returnId)
                 .orElseThrow(() -> new CustomException("Không tìm thấy yêu cầu đổi trả #" + returnId));
 
-        if (!"REQUESTED".equalsIgnoreCase(req.getStatus()) && !"PENDING".equalsIgnoreCase(req.getStatus()) && !"PROCESSING".equalsIgnoreCase(req.getStatus())) {
-            throw new CustomException("Yêu cầu này đã được xử lý trước đó (" + req.getStatus() + ").");
+        // Idempotency: Nếu đã COMPLETED thì bỏ qua
+        if ("COMPLETED".equalsIgnoreCase(req.getStatus())) {
+            return;
         }
 
-        if ("REJECT".equalsIgnoreCase(action)) {
-            req.setStatus("REJECTED");
-            req.setRejectionReason(rejectReason != null ? rejectReason.trim() : "Không đạt tiêu chuẩn kiểm định đổi trả.");
-            req.setProcessedAt(LocalDateTime.now());
-            orderReturnRepository.save(req);
-            notificationService.notifyReturnRejected(req);
-            return;
+        if (!"PROCESSING".equalsIgnoreCase(req.getStatus()) && !"APPROVED".equalsIgnoreCase(req.getStatus())) {
+            throw new CustomException("Yêu cầu phải ở trạng thái APPROVED hoặc PROCESSING mới có thể hoàn tất.");
         }
 
         req.setStatus("COMPLETED");
         req.setProcessedAt(LocalDateTime.now());
         req.setRefundMethod(refundMethod != null ? refundMethod : "COOLCASH");
         req.setRefundStatus("COMPLETED");
-        req.setRefundReference("REFUND-" + System.currentTimeMillis());
+        req.setRefundReference("REFUND-" + req.getId() + "-" + System.currentTimeMillis());
 
+        // 1. Nhập kho lại sản phẩm đổi trả (Idempotent theo returnId)
+        stockService.restockFromReturn(req.getOrderItem().getVariant(), req.getQuantity(), req.getId());
+
+        // 2. Nếu là đổi hàng (Exchange) -> xuất kho biến thể mới
         if (req.getTargetVariant() != null) {
-            stockService.restockFromReturn(req.getOrderItem().getVariant(), req.getQuantity(), req.getId());
             ProductVariant target = req.getTargetVariant();
             target.setStockQuantity(Math.max(0, target.getStockQuantity() - req.getQuantity()));
             productVariantRepository.save(target);
-        } else {
-            stockService.restockFromReturn(req.getOrderItem().getVariant(), req.getQuantity(), req.getId());
         }
 
+        // 3. Hoàn tiền nếu có (Idempotent theo returnId)
         if (req.getRefundAmount() != null && req.getRefundAmount().compareTo(BigDecimal.ZERO) > 0) {
             if ("COOLCASH".equalsIgnoreCase(refundMethod)) {
                 coolCashService.refundCoolCash(req.getUser(), req.getOrder(), req.getRefundAmount(), 
-                        "Hoàn tiền vào ví CoolCash từ yêu cầu đổi trả #" + req.getId() + " (Đơn #" + req.getOrder().getOrderCode() + ")");
+                        "Hoàn tiền ví CoolCash từ yêu cầu đổi trả #" + req.getId() + " (Đơn #" + req.getOrder().getOrderCode() + ")",
+                        "RETURN_REFUND:" + req.getId());
             }
         }
 
+        // 4. Thu hồi cashback đã trao thưởng trước đó và giảm tổng chi tiêu nếu có
+        Order order = req.getOrder();
+        if (order != null && order.getCoolcashEarned() != null && order.getCoolcashEarned().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal orderFinal = order.getFinalAmount() != null && order.getFinalAmount().compareTo(BigDecimal.ZERO) > 0 ? order.getFinalAmount() : BigDecimal.ONE;
+            BigDecimal cashbackToRevoke = order.getCoolcashEarned()
+                    .multiply(req.getRefundAmount())
+                    .divide(orderFinal, 0, RoundingMode.HALF_UP);
+            if (cashbackToRevoke.compareTo(BigDecimal.ZERO) > 0 && req.getUser() != null) {
+                coolCashService.revokeOrderCashback(req.getUser(), order, cashbackToRevoke, 
+                        "Thu hồi hoàn tiền do đổi trả sản phẩm đơn #" + order.getOrderCode(), 
+                        "RETURN_CASHBACK_REVOKE:" + req.getId());
+            }
+        }
+
+        if (req.getUser() != null && req.getRefundAmount() != null && req.getRefundAmount().compareTo(BigDecimal.ZERO) > 0) {
+            User u = req.getUser();
+            BigDecimal currentSpent = u.getTotalSpent() != null ? u.getTotalSpent() : BigDecimal.ZERO;
+            BigDecimal newSpent = currentSpent.subtract(req.getRefundAmount()).max(BigDecimal.ZERO);
+            u.setTotalSpent(newSpent);
+
+            if (newSpent.compareTo(BigDecimal.valueOf(6000000)) >= 0) {
+                u.setMembershipTier("PLATINUM");
+            } else if (newSpent.compareTo(BigDecimal.valueOf(3000000)) >= 0) {
+                u.setMembershipTier("GOLD");
+            } else if (newSpent.compareTo(BigDecimal.valueOf(1000000)) >= 0) {
+                u.setMembershipTier("SILVER");
+            } else {
+                u.setMembershipTier("NEW");
+            }
+            userRepository.save(u);
+        }
+
         orderReturnRepository.save(req);
-        notificationService.notifyReturnApproved(req);
+        notificationService.notifyReturnCompleted(req);
+    }
+
+    @Transactional
+    public void processReturnApproval(Long returnId, String action, String refundMethod, String rejectReason, User staffUser) {
+        if ("REJECT".equalsIgnoreCase(action)) {
+            rejectReturn(returnId, rejectReason, staffUser);
+        } else if ("APPROVE".equalsIgnoreCase(action)) {
+            approveReturn(returnId, staffUser);
+        } else if ("PROCESS".equalsIgnoreCase(action)) {
+            startProcessingReturn(returnId, staffUser);
+        } else {
+            completeReturn(returnId, refundMethod, staffUser);
+        }
     }
 }

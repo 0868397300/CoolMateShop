@@ -79,12 +79,12 @@ public class VnpayPaymentProcessor {
     }
 
     @Transactional
-    public synchronized PaymentResult processVnpayResult(Map<String, String> params, String guestToken) {
+    public PaymentResult processVnpayResult(Map<String, String> params, String guestToken) {
         Map<String, String> fields = new HashMap<>(params);
         String vnp_SecureHash = fields.remove("vnp_SecureHash");
         fields.remove("vnp_SecureHashType");
 
-        // 1. Kiểm tra chữ ký số
+        // 1. Kiểm tra chữ ký số VNPAY (Checksum)
         if (!vnpayService.validateSignature(fields, vnp_SecureHash)) {
             log.warn("VNPAY signature validation failed for params: {}", params);
             return new PaymentResult(false, "97", "Chữ ký giao dịch không hợp lệ (Invalid Checksum)", null, 0, null);
@@ -96,13 +96,16 @@ public class VnpayPaymentProcessor {
         String bankCode = params.get("vnp_BankCode");
         String amountStr = params.get("vnp_Amount");
 
-        Order order = orderRepository.findByVnpayTxnRef(txnRef).orElse(null);
+        // 2. DB Row Locking (Pessimistic Write Lock) ngăn chặn race condition giữa Return và IPN
+        Order order = orderRepository.findByVnpayTxnRefForUpdate(txnRef)
+                .orElseGet(() -> orderRepository.findByVnpayTxnRef(txnRef).orElse(null));
+
         if (order == null) {
             log.warn("VNPAY order not found for txnRef: {}", txnRef);
             return new PaymentResult(false, "01", "Không tìm thấy đơn hàng tương ứng (Order Not Found)", null, 0, transactionNo);
         }
 
-        // 2. Chống malformed request khi parse amount (LỖI 8)
+        // 3. Chống malformed request khi parse amount (không gây lỗi 500)
         long receivedAmount = 0;
         try {
             if (amountStr != null && !amountStr.isBlank()) {
@@ -118,9 +121,16 @@ public class VnpayPaymentProcessor {
             return new PaymentResult(false, "04", "Số tiền thanh toán không khớp với đơn hàng (Invalid Amount)", order, receivedAmount, transactionNo);
         }
 
-        // 3. Idempotent check: Nếu đơn đã PAID trước đó
+        // 4. Idempotency Check 1: Nếu đơn hàng đã được ghi nhận PAID trước đó, không xử lý lại
         if ("PAID".equalsIgnoreCase(order.getPaymentStatus())) {
             return new PaymentResult(true, "02", "Giao dịch đã được ghi nhận thành công trước đó (Order already confirmed)", order, receivedAmount, transactionNo);
+        }
+
+        // 5. Idempotency Check 2: Không cho phép SUCCESS callback hồi sinh (revive) đơn đã CANCELLED hoặc PAYMENT_FAILED
+        if ("CANCELLED".equalsIgnoreCase(order.getOrderStatus()) || "PAYMENT_FAILED".equalsIgnoreCase(order.getPaymentStatus())) {
+            log.warn("VNPAY callback rejected: Đơn hàng #{} đã ở trạng thái kết thúc (Status: {}, Payment: {})",
+                    order.getOrderCode(), order.getOrderStatus(), order.getPaymentStatus());
+            return new PaymentResult(false, "02", "Đơn hàng đã bị hủy hoặc thất bại trước đó, không thể khôi phục.", order, receivedAmount, transactionNo);
         }
 
         boolean isSuccess = "00".equals(responseCode);
@@ -136,15 +146,15 @@ public class VnpayPaymentProcessor {
             order.setUpdatedAt(LocalDateTime.now());
             orderRepository.save(order);
 
-            // Xác nhận tiêu thụ tồn kho (Consume)
+            // Xác nhận tiêu thụ tồn kho (Consume Stock - Idempotent)
             stockService.consumeStock(order);
 
-            // Finalize CoolCash spend (LỖI 5)
+            // Finalize CoolCash spend (RESERVED -> FINALIZED)
             if (order.getUser() != null && order.getCoolcashUsed() != null && order.getCoolcashUsed().compareTo(BigDecimal.ZERO) > 0) {
-                coolCashService.spendCoolCash(order.getUser(), order, order.getCoolcashUsed(), "ORDER_COOLCASH_SPEND:" + order.getId());
+                coolCashService.finalizeCoolCashSpend(order.getUser(), order, order.getCoolcashUsed(), "ORDER_COOLCASH_SPEND:" + order.getId());
             }
 
-            // Finalize Voucher usage (LỖI 6)
+            // Finalize Voucher usage (RESERVED -> FINALIZED)
             List<PromotionUsage> usages = promotionUsageRepository.findByOrderId(order.getId());
             for (PromotionUsage u : usages) {
                 if ("RESERVED".equalsIgnoreCase(u.getStatus())) {
@@ -158,42 +168,39 @@ public class VnpayPaymentProcessor {
                 }
             }
 
-            // Xóa giỏ hàng
+            // Xóa giỏ hàng sau khi thanh toán thành công
             cartService.clearCart(order.getUser(), guestToken);
 
             notificationService.notifyPaymentSuccess(order);
             return new PaymentResult(true, "00", "Thanh toán thành công qua VNPAY", order, receivedAmount, transactionNo);
         } else {
-            // Thanh toán thất bại hoặc hủy bỏ
-            if (!"CANCELLED".equalsIgnoreCase(order.getOrderStatus())) {
-                order.setPaymentStatus("PAYMENT_FAILED");
-                order.setPaymentResponseCode(responseCode);
-                order.setPaymentFailureReason("Giao dịch VNPAY thất bại/hủy với mã: " + responseCode);
-                order.setOrderStatus("CANCELLED");
-                order.setCancelledAt(LocalDateTime.now());
-                order.setCancelledReason("Thanh toán VNPAY không thành công");
-                order.setUpdatedAt(LocalDateTime.now());
-                orderRepository.save(order);
+            // Thanh toán thất bại hoặc hủy giao dịch VNPAY
+            order.setPaymentStatus("PAYMENT_FAILED");
+            order.setPaymentResponseCode(responseCode);
+            order.setPaymentFailureReason("Giao dịch VNPAY thất bại/hủy với mã: " + responseCode);
+            order.setOrderStatus("CANCELLED");
+            order.setCancelledAt(LocalDateTime.now());
+            order.setCancelledReason("Thanh toán VNPAY không thành công");
+            order.setUpdatedAt(LocalDateTime.now());
+            orderRepository.save(order);
 
-                // Release tồn kho đã giữ
-                stockService.releaseStock(order);
+            // Release tồn kho đã giữ (Idempotent)
+            stockService.releaseStock(order);
 
-                // Release Voucher usage (LỖI 6)
-                List<PromotionUsage> usages = promotionUsageRepository.findByOrderId(order.getId());
-                for (PromotionUsage u : usages) {
-                    u.setStatus("RELEASED");
-                    promotionUsageRepository.save(u);
-                }
-
-                // Nếu CoolCash đã bị trừ, hoàn lại
-                if (order.getUser() != null && order.getCoolcashUsed() != null && order.getCoolcashUsed().compareTo(BigDecimal.ZERO) > 0) {
-                    coolCashService.refundCoolCash(order.getUser(), order, order.getCoolcashUsed(),
-                            "Hoàn lại CoolCash do giao dịch VNPAY thất bại cho đơn #" + order.getOrderCode(),
-                            "ORDER_COOLCASH_REFUND:" + order.getId());
-                }
-
-                notificationService.notifyPaymentFailed(order, "Mã phản hồi: " + responseCode);
+            // Release Voucher usage (RESERVED -> RELEASED để khách có thể tái sử dụng)
+            List<PromotionUsage> usages = promotionUsageRepository.findByOrderId(order.getId());
+            for (PromotionUsage u : usages) {
+                u.setStatus("RELEASED");
+                promotionUsageRepository.save(u);
             }
+
+            // Release CoolCash đã giữ (RESERVED -> RELEASED, hoàn lại số dư)
+            if (order.getUser() != null && order.getCoolcashUsed() != null && order.getCoolcashUsed().compareTo(BigDecimal.ZERO) > 0) {
+                coolCashService.releaseReservedCoolCash(order.getUser(), order, order.getCoolcashUsed(),
+                        "ORDER_COOLCASH_RELEASE:" + order.getId());
+            }
+
+            notificationService.notifyPaymentFailed(order, "Mã phản hồi: " + responseCode);
             return new PaymentResult(false, responseCode != null ? responseCode : "99", 
                     "Giao dịch không thành công hoặc bạn đã hủy thanh toán.", order, receivedAmount, transactionNo);
         }
