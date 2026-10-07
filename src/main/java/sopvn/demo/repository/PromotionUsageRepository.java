@@ -23,4 +23,6 @@ public interface PromotionUsageRepository extends JpaRepository<PromotionUsage, 
     List<PromotionUsage> findByOrderId(Long orderId);
 
     Optional<PromotionUsage> findByOrderIdAndPromotionId(Long orderId, Long promotionId);
+
+    boolean existsByOrderIdAndPromotionId(Long orderId, Long promotionId);
 }

@@ -13,7 +13,9 @@ import sopvn.demo.core.exception.CustomException;
 import sopvn.demo.core.service.NotificationService;
 import sopvn.demo.core.service.ReviewService;
 import sopvn.demo.entity.*;
+import sopvn.demo.inventory.InventoryService;
 import sopvn.demo.inventory.StockService;
+import sopvn.demo.inventory.dto.InventoryStatsDTO;
 import sopvn.demo.order.OrderService;
 import sopvn.demo.order.ReturnService;
 import sopvn.demo.order.ShippingFeeService;
@@ -27,6 +29,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -63,6 +66,7 @@ public class D2CBusinessLogicTests {
     private ReviewService reviewService;
     private CartService cartService;
     private VnpayPaymentProcessor vnpayPaymentProcessor;
+    private InventoryService inventoryService;
 
     @BeforeEach
     void setUp() {
@@ -78,10 +82,12 @@ public class D2CBusinessLogicTests {
         cartService = new CartService(cartRepository, cartItemRepository, productVariantRepository, productImageRepository, pricingService);
         vnpayPaymentProcessor = new VnpayPaymentProcessor(vnpayService, orderRepository, stockService, coolCashService,
                 promotionRepository, promotionUsageRepository, cartService, notificationService);
+        inventoryService = new InventoryService(inventoryReceiptRepository, productVariantRepository);
     }
 
     // =========================================================================
     // TEST 1: Concurrency - SKU stock = 1, 2 concurrent threads -> exactly 1 succeeds
+    // Không dùng synchronized trên test runner, mô phỏng DB pessimistic row locking
     // =========================================================================
     @Test
     @DisplayName("TEST 1: Concurrency check - SKU stock = 1, concurrent execution atomic reservation")
@@ -92,8 +98,20 @@ public class D2CBusinessLogicTests {
         variant.setStockQuantity(1);
         variant.setIsActive(true);
 
-        when(productVariantRepository.findById(101L)).thenReturn(Optional.of(variant));
-        when(productVariantRepository.save(any(ProductVariant.class))).thenAnswer(inv -> inv.getArgument(0));
+        ReentrantLock dbRowLock = new ReentrantLock();
+        when(productVariantRepository.findByIdForUpdate(101L)).thenAnswer(inv -> {
+            dbRowLock.lock();
+            return Optional.of(variant);
+        });
+        when(productVariantRepository.save(any(ProductVariant.class))).thenAnswer(inv -> {
+            try {
+                return inv.getArgument(0);
+            } finally {
+                if (dbRowLock.isHeldByCurrentThread()) {
+                    dbRowLock.unlock();
+                }
+            }
+        });
 
         int threadCount = 2;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
@@ -107,15 +125,17 @@ public class D2CBusinessLogicTests {
             executor.submit(() -> {
                 try {
                     startLatch.await();
-                    synchronized (variant) {
-                        stockService.reserveStock(variant, 1, orderId);
-                    }
+                    // Gọi trực tiếp method service, không dùng synchronized ngoại vi
+                    stockService.reserveStock(variant, 1, orderId);
                     successCount.incrementAndGet();
                 } catch (CustomException ex) {
                     failCount.incrementAndGet();
                 } catch (Exception e) {
                     failCount.incrementAndGet();
                 } finally {
+                    if (dbRowLock.isHeldByCurrentThread()) {
+                        dbRowLock.unlock();
+                    }
                     finishLatch.countDown();
                 }
             });
@@ -150,6 +170,7 @@ public class D2CBusinessLogicTests {
         order.setOrderCode("CM-VNPAY-TEST2");
         order.setOrderStatus("PENDING");
         order.setPaymentStatus("PAYMENT_PENDING");
+        order.setPaymentMethod("VNPAY");
         order.setItems(Collections.singletonList(item));
 
         when(orderRepository.findById(501L)).thenReturn(Optional.of(order));
@@ -231,6 +252,93 @@ public class D2CBusinessLogicTests {
         assertFalse(result.isSuccess(), "Không được phép hồi sinh đơn hàng đã bị CANCELLED");
         assertEquals("CANCELLED", order.getOrderStatus(), "Trạng thái đơn hàng vẫn phải là CANCELLED");
         assertEquals("PAYMENT_FAILED", order.getPaymentStatus());
+    }
+
+    // =========================================================================
+    // TEST 3C: P0-1: Unpaid VNPAY order cannot transition to COMPLETED or CONFIRMED
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 3C: Unpaid VNPAY order cannot be completed or confirmed")
+    void test3c_unpaidVnpayOrderCannotBeCompleted() {
+        Order order = new Order();
+        order.setId(603L);
+        order.setOrderCode("CM-UNPAID-603");
+        order.setPaymentMethod("VNPAY");
+        order.setOrderStatus("PENDING");
+        order.setPaymentStatus("PAYMENT_PENDING");
+
+        when(orderRepository.findById(603L)).thenReturn(Optional.of(order));
+
+        // 1. Không thể completeOrder khi chưa PAID
+        assertThrows(CustomException.class, () -> {
+            orderService.completeOrder(603L);
+        }, "Đơn hàng VNPAY chưa thanh toán không được phép completeOrder");
+
+        // 2. Không thể transitionStatus sang CONFIRMED khi chưa PAID
+        User admin = new User(); admin.setId(1L);
+        Role r = new Role(); r.setRoleName("ROLE_ADMIN"); admin.getRoles().add(r);
+
+        assertThrows(CustomException.class, () -> {
+            orderService.transitionStatus(603L, "CONFIRMED", admin);
+        }, "Đơn hàng VNPAY chưa thanh toán không được phép transitionStatus sang CONFIRMED");
+
+        assertEquals("PENDING", order.getOrderStatus());
+        assertEquals("PAYMENT_PENDING", order.getPaymentStatus());
+    }
+
+    // =========================================================================
+    // TEST 3D: P0-2: Cancel order PAID uses refund workflow, restock consumed stock
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 3D: Cancel order PAID follows refund workflow, restocks consumed stock")
+    void test3d_cancelPaidOrderFollowsRefundPolicy() {
+        ProductVariant variant = new ProductVariant();
+        variant.setId(205L);
+        variant.setStockQuantity(8);
+
+        OrderItem item = new OrderItem();
+        item.setId(2005L);
+        item.setVariant(variant);
+        item.setQuantity(2);
+
+        User user = new User();
+        user.setId(705L);
+        user.setCoolcashBalance(BigDecimal.valueOf(10_000));
+
+        Order order = new Order();
+        order.setId(505L);
+        order.setOrderCode("CM-PAID-505");
+        order.setUser(user);
+        order.setOrderStatus("CONFIRMED");
+        order.setPaymentStatus("PAID");
+        order.setPaymentMethod("VNPAY");
+        order.setCoolcashUsed(BigDecimal.valueOf(50_000));
+        order.setFinalAmount(BigDecimal.valueOf(200_000));
+        order.setItems(Collections.singletonList(item));
+
+        Promotion promo = new Promotion();
+        promo.setId(99L);
+        promo.setUsedCount(1);
+        PromotionUsage usage = new PromotionUsage(promo, user, order, BigDecimal.valueOf(30_000), "FINALIZED");
+
+        when(orderRepository.findById(505L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(productVariantRepository.findById(205L)).thenReturn(Optional.of(variant));
+        when(productVariantRepository.save(any(ProductVariant.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(promotionUsageRepository.findByOrderId(505L)).thenReturn(Collections.singletonList(usage));
+        when(promotionRepository.findById(99L)).thenReturn(Optional.of(promo));
+        when(promotionRepository.save(any(Promotion.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.findById(705L)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        orderService.cancelOrder(505L, null, "Hủy đơn hàng đã thanh toán trước khi giao");
+
+        assertEquals("CANCELLED", order.getOrderStatus());
+        assertEquals("REFUND_PENDING", order.getPaymentStatus(), "Đơn đã PAID khi hủy chuyển thành REFUND_PENDING");
+        assertEquals(10, variant.getStockQuantity(), "Hàng đã tiêu thụ (CONSUMED) phải được nhập lại kho");
+        assertEquals("RELEASED", usage.getStatus(), "Voucher usage phải được chuyển sang RELEASED");
+        assertEquals(0, promo.getUsedCount(), "Voucher usedCount của đơn PAID phải được giảm lại khi hủy");
+        assertEquals(0, user.getCoolcashBalance().compareTo(BigDecimal.valueOf(60_000)), "CoolCash đã chi tiêu phải được hoàn lại số dư");
     }
 
     // =========================================================================
@@ -351,6 +459,7 @@ public class D2CBusinessLogicTests {
         order.setId(888L);
         order.setOrderCode("CM-ORDER-888");
 
+        when(userRepository.findById(801L)).thenReturn(Optional.of(user));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         when(coolCashTransactionRepository.existsByIdempotencyKey("ORDER_COOLCASH_SPEND:888")).thenReturn(false).thenReturn(true);
 
@@ -361,6 +470,68 @@ public class D2CBusinessLogicTests {
         // Lần 2 (Duplicate callback/retry): Không trừ tiếp
         coolCashService.spendCoolCash(user, order, BigDecimal.valueOf(50_000), "ORDER_COOLCASH_SPEND:888");
         assertEquals(0, user.getCoolcashBalance().compareTo(BigDecimal.valueOf(50_000)), "Số dư không được bị trừ lần 2");
+    }
+
+    // =========================================================================
+    // TEST 8A: P0-3: CoolCash concurrent spend - atomic/row locking prevents negative balance
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 8A: CoolCash concurrent spend with row lock prevents negative balance")
+    void test8a_coolcashConcurrentSpendPreventsNegativeBalance() throws InterruptedException {
+        User user = new User();
+        user.setId(880L);
+        user.setCoolcashBalance(BigDecimal.valueOf(100_000));
+
+        ReentrantLock userRowLock = new ReentrantLock();
+        when(userRepository.findByIdForUpdate(880L)).thenAnswer(inv -> {
+            userRowLock.lock();
+            return Optional.of(user);
+        });
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> {
+            try {
+                return inv.getArgument(0);
+            } finally {
+                if (userRowLock.isHeldByCurrentThread()) {
+                    userRowLock.unlock();
+                }
+            }
+        });
+
+        int threadCount = 2;
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch finishLatch = new CountDownLatch(threadCount);
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger failCount = new AtomicInteger(0);
+
+        for (int i = 0; i < threadCount; i++) {
+            final int idx = i;
+            executor.submit(() -> {
+                try {
+                    startLatch.await();
+                    Order ord = new Order(); ord.setId(8800L + idx); ord.setOrderCode("CM-SPEND-" + idx);
+                    coolCashService.spendCoolCash(user, ord, BigDecimal.valueOf(70_000), "ORDER_SPEND_CONCURRENT:" + idx);
+                    successCount.incrementAndGet();
+                } catch (CustomException ex) {
+                    failCount.incrementAndGet();
+                } catch (Exception e) {
+                    failCount.incrementAndGet();
+                } finally {
+                    if (userRowLock.isHeldByCurrentThread()) {
+                        userRowLock.unlock();
+                    }
+                    finishLatch.countDown();
+                }
+            });
+        }
+
+        startLatch.countDown();
+        finishLatch.await(5, TimeUnit.SECONDS);
+        executor.shutdown();
+
+        assertEquals(1, successCount.get(), "Chỉ 1 giao dịch được chi tiêu 70k thành công từ số dư 100k");
+        assertEquals(1, failCount.get(), "Giao dịch thứ 2 phải thất bại do số dư không đủ");
+        assertEquals(0, user.getCoolcashBalance().compareTo(BigDecimal.valueOf(30_000)), "Số dư còn lại phải là 30k, không âm");
     }
 
     // =========================================================================
@@ -507,9 +678,12 @@ public class D2CBusinessLogicTests {
         req.setUser(user);
         req.setQuantity(1);
         req.setRefundAmount(BigDecimal.valueOf(200_000));
-        req.setStatus("APPROVED");
+        // Trạng thái hợp lệ trước khi hoàn tất là PROCESSING
+        req.setStatus("PROCESSING");
 
         when(orderReturnRepository.findById(777L)).thenReturn(Optional.of(req));
+        when(userRepository.findById(903L)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
         User staff = new User(); staff.setId(99L);
         // Lần 1: Hoàn tất
@@ -519,6 +693,38 @@ public class D2CBusinessLogicTests {
         // Lần 2: Gọi lại không gây lỗi và không lặp thao tác
         returnService.completeReturn(777L, "COOLCASH", staff);
         assertEquals("COMPLETED", req.getStatus());
+    }
+
+    // =========================================================================
+    // TEST 9D: P0-5: Return action validation & state machine skipping protection
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 9D: Invalid return action rejected and state skipping forbidden")
+    void test9d_invalidReturnActionAndStateSkipping() {
+        OrderReturn req = new OrderReturn();
+        req.setId(788L);
+        req.setStatus("REQUESTED");
+
+        when(orderReturnRepository.findById(788L)).thenReturn(Optional.of(req));
+        User staff = new User(); staff.setId(99L);
+
+        // 1. Action không hợp lệ -> ném CustomException
+        assertThrows(CustomException.class, () -> {
+            returnService.processReturnApproval(788L, "FOOBAR", "COOLCASH", null, staff);
+        }, "Action lạ ngoài APPROVE/REJECT/PROCESS/COMPLETE phải bị từ chối");
+
+        // 2. Không cho phép nhảy thẳng từ REQUESTED sang COMPLETE
+        assertThrows(CustomException.class, () -> {
+            returnService.processReturnApproval(788L, "COMPLETE", "COOLCASH", null, staff);
+        }, "Không được skip PROCESSING để chuyển trực tiếp sang COMPLETED");
+
+        // 3. Workflow hợp lệ: REQUESTED -> APPROVE
+        returnService.processReturnApproval(788L, "APPROVE", "COOLCASH", null, staff);
+        assertEquals("APPROVED", req.getStatus());
+
+        // 4. APPROVED -> PROCESS
+        returnService.processReturnApproval(788L, "PROCESS", "COOLCASH", null, staff);
+        assertEquals("PROCESSING", req.getStatus());
     }
 
     // =========================================================================
@@ -570,32 +776,66 @@ public class D2CBusinessLogicTests {
     }
 
     // =========================================================================
-    // TEST 12: User A gửi CartItem ID của User B -> IDOR Protection throws CustomException
+    // TEST 11B: P1: InventoryStats only counts receipt APPROVED
     // =========================================================================
     @Test
-    @DisplayName("TEST 12: Cart Item IDOR protection - cannot update another user's cart item")
+    @DisplayName("TEST 11B: InventoryService.getInventoryStats() only counts APPROVED receipts")
+    void test11b_inventoryStatsOnlyCountsApprovedReceipts() {
+        InventoryReceiptItem it1 = new InventoryReceiptItem(); it1.setQuantity(10);
+        InventoryReceipt rSubmitted = new InventoryReceipt();
+        rSubmitted.setStatus("SUBMITTED");
+        rSubmitted.setTotalAmount(BigDecimal.valueOf(100_000));
+        rSubmitted.setCreatedAt(LocalDateTime.now());
+        rSubmitted.setItems(Collections.singletonList(it1));
+
+        InventoryReceiptItem it2 = new InventoryReceiptItem(); it2.setQuantity(20);
+        InventoryReceipt rRejected = new InventoryReceipt();
+        rRejected.setStatus("REJECTED");
+        rRejected.setTotalAmount(BigDecimal.valueOf(200_000));
+        rRejected.setCreatedAt(LocalDateTime.now());
+        rRejected.setItems(Collections.singletonList(it2));
+
+        InventoryReceiptItem it3 = new InventoryReceiptItem(); it3.setQuantity(30);
+        InventoryReceipt rApproved = new InventoryReceipt();
+        rApproved.setStatus("APPROVED");
+        rApproved.setTotalAmount(BigDecimal.valueOf(300_000));
+        rApproved.setCreatedAt(LocalDateTime.now());
+        rApproved.setItems(Collections.singletonList(it3));
+
+        when(inventoryReceiptRepository.findAll()).thenReturn(Arrays.asList(rSubmitted, rRejected, rApproved));
+        when(productVariantRepository.findAll()).thenReturn(Collections.emptyList());
+
+        InventoryStatsDTO stats = inventoryService.getInventoryStats();
+
+        assertEquals(1, stats.getTotalReceipts(), "Chỉ đúng 1 phiếu APPROVED được tính vào tổng số phiếu nhập");
+        assertEquals(30, stats.getTotalUnitsImported(), "Chỉ 30 sản phẩm từ phiếu APPROVED được tính vào tổng nhập");
+        assertEquals(0, stats.getTotalSpentThisMonth().compareTo(BigDecimal.valueOf(300_000)), "Chỉ 300k từ phiếu APPROVED được tính vào chi phí nhập");
+    }
+
+    // =========================================================================
+    // TEST 12: User B xóa item của User A -> IDOR 403 / CustomException
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 12: Cart Item ownership IDOR check")
     void test12_cartItemIdorProtection() {
         User userA = new User(); userA.setId(1201L);
         User userB = new User(); userB.setId(1202L);
 
-        Cart cartA = new Cart(); cartA.setId(10L); cartA.setUser(userA);
-        Cart cartB = new Cart(); cartB.setId(20L); cartB.setUser(userB);
+        Cart cartA = new Cart(); cartA.setUser(userA);
+        CartItem itemA = new CartItem(); itemA.setId(121L); itemA.setCart(cartA);
 
-        CartItem itemB = new CartItem(); itemB.setId(999L); itemB.setCart(cartB);
-
-        when(cartRepository.findByUserId(1201L)).thenReturn(Optional.of(cartA));
-        when(cartItemRepository.findById(999L)).thenReturn(Optional.of(itemB));
+        when(cartItemRepository.findById(121L)).thenReturn(Optional.of(itemA));
 
         assertThrows(CustomException.class, () -> {
-            cartService.updateQuantity(userA, null, 999L, 5);
-        });
+            cartService.removeItem(userB, null, 121L);
+        }, "User B deleting User A cart item must be rejected");
     }
 
     // =========================================================================
-    // TEST 13: User A gọi wallet -> chỉ thấy transaction của User A
+    // TEST 13: User A vào ví cá nhân -> chỉ lấy transaction của User A
     // =========================================================================
     @Test
-    @DisplayName("TEST 13: Wallet data leak protection - findByUserId isolation")
+    @DisplayName("TEST 13: CoolCash wallet query data leak protection")
     void test13_walletDataLeakProtection() {
         User userA = new User(); userA.setId(1301L); userA.setFullName("User A");
 

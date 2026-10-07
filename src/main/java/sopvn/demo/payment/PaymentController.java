@@ -196,6 +196,17 @@ public class PaymentController {
 
                 if (shippingAddress != null && !shippingAddress.isBlank()) {
                     finalShippingAddress = shippingAddress.trim();
+                    if (finalProvince == null || finalProvince.isBlank()) {
+                        String[] parts = finalShippingAddress.split(",");
+                        if (parts.length >= 2) {
+                            finalProvince = parts[parts.length - 1].trim();
+                            if (finalDistrict == null || finalDistrict.isBlank()) {
+                                finalDistrict = parts[parts.length - 2].trim();
+                            }
+                        } else if (parts.length == 1) {
+                            finalProvince = parts[0].trim();
+                        }
+                    }
                 } else {
                     if (finalProvince == null || finalProvince.isBlank()) {
                         throw new CustomException("Vui lòng chọn Tỉnh / Thành phố giao hàng.");

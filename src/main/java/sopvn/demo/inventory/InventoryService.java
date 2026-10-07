@@ -103,18 +103,27 @@ public class InventoryService {
         InventoryStatsDTO stats = new InventoryStatsDTO();
 
         List<InventoryReceipt> allReceipts = receiptRepository.findAll();
-        long totalReceipts = allReceipts.size();
-
-        LocalDateTime startOfMonth = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
+        long totalReceipts = 0;
         BigDecimal spentThisMonth = BigDecimal.ZERO;
         long totalUnitsImported = 0;
 
+        LocalDateTime startOfMonth = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
+
+        // P1: Chỉ tính các phiếu nhập đã được APPROVED cho total receipts, imported units, spent amount.
+        // Bỏ qua các phiếu SUBMITTED / REJECTED.
         for (InventoryReceipt r : allReceipts) {
+            if (!"APPROVED".equalsIgnoreCase(r.getStatus())) {
+                continue;
+            }
+
+            totalReceipts++;
+
             if (r.getCreatedAt() != null && !r.getCreatedAt().isBefore(startOfMonth)) {
                 if (r.getTotalAmount() != null) {
                     spentThisMonth = spentThisMonth.add(r.getTotalAmount());
                 }
             }
+
             if (r.getItems() != null) {
                 for (InventoryReceiptItem item : r.getItems()) {
                     if (item.getQuantity() != null) {
@@ -137,7 +146,6 @@ public class InventoryService {
             }
         }
 
-        // Cập nhật đúng các methods hiện có của InventoryStatsDTO
         stats.setTotalReceipts(totalReceipts);
         stats.setTotalSpentThisMonth(spentThisMonth);
         stats.setTotalUnitsImported(totalUnitsImported);

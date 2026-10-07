@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class StockService {
@@ -28,6 +29,15 @@ public class StockService {
         this.notificationService = notificationService;
     }
 
+    private ProductVariant findVariantWithLock(Long variantId) {
+        Optional<ProductVariant> opt = productVariantRepository.findByIdForUpdate(variantId);
+        if (opt.isPresent()) {
+            return opt.get();
+        }
+        return productVariantRepository.findById(variantId)
+                .orElseThrow(() -> new CustomException("Biến thể sản phẩm không tồn tại: " + variantId));
+    }
+
     @Transactional
     public void reserveStock(ProductVariant variant, int quantity, Long orderId) {
         if (quantity <= 0) return;
@@ -38,8 +48,7 @@ public class StockService {
             return;
         }
 
-        ProductVariant v = productVariantRepository.findById(variant.getId())
-                .orElseThrow(() -> new CustomException("Biến thể sản phẩm không tồn tại: " + variant.getId()));
+        ProductVariant v = findVariantWithLock(variant.getId());
 
         if (v.getStockQuantity() < quantity) {
             throw new CustomException("Sản phẩm '" + v.getSku() + "' chỉ còn " + v.getStockQuantity() + " chiếc trong kho, không đủ số lượng yêu cầu (" + quantity + ").");
@@ -116,24 +125,54 @@ public class StockService {
 
         for (OrderItem item : order.getItems()) {
             if (item.getVariant() != null && item.getQuantity() != null && item.getQuantity() > 0) {
-                ProductVariant v = productVariantRepository.findById(item.getVariant().getId()).orElse(null);
-                if (v != null) {
-                    int before = v.getStockQuantity();
-                    int after = before + item.getQuantity();
-                    v.setStockQuantity(after);
-                    productVariantRepository.save(v);
+                ProductVariant v = findVariantWithLock(item.getVariant().getId());
+                int before = v.getStockQuantity();
+                int after = before + item.getQuantity();
+                v.setStockQuantity(after);
+                productVariantRepository.save(v);
 
-                    InventoryMovement movement = new InventoryMovement();
-                    movement.setVariant(v);
-                    movement.setMovementType("ORDER_RELEASE");
-                    movement.setQuantity(item.getQuantity());
-                    movement.setBeforeQuantity(before);
-                    movement.setAfterQuantity(after);
-                    movement.setReferenceType("ORDER");
-                    movement.setReferenceId(order.getId());
-                    movement.setNote("Hoàn kho khi hủy/thất bại đơn hàng #" + order.getOrderCode());
-                    inventoryMovementRepository.save(movement);
-                }
+                InventoryMovement movement = new InventoryMovement();
+                movement.setVariant(v);
+                movement.setMovementType("ORDER_RELEASE");
+                movement.setQuantity(item.getQuantity());
+                movement.setBeforeQuantity(before);
+                movement.setAfterQuantity(after);
+                movement.setReferenceType("ORDER");
+                movement.setReferenceId(order.getId());
+                movement.setNote("Hoàn kho giải phóng hàng tạm giữ cho đơn #" + order.getOrderCode());
+                inventoryMovementRepository.save(movement);
+            }
+        }
+    }
+
+    @Transactional
+    public void restockCancelledOrder(Order order) {
+        if (order == null || order.getItems() == null) return;
+
+        // Idempotency: Đã restock đơn hủy này rồi thì bỏ qua
+        if (inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType(
+                "ORDER", order.getId(), "ORDER_CANCEL_RESTOCK")) {
+            return;
+        }
+
+        for (OrderItem item : order.getItems()) {
+            if (item.getVariant() != null && item.getQuantity() != null && item.getQuantity() > 0) {
+                ProductVariant v = findVariantWithLock(item.getVariant().getId());
+                int before = v.getStockQuantity();
+                int after = before + item.getQuantity();
+                v.setStockQuantity(after);
+                productVariantRepository.save(v);
+
+                InventoryMovement movement = new InventoryMovement();
+                movement.setVariant(v);
+                movement.setMovementType("ORDER_CANCEL_RESTOCK");
+                movement.setQuantity(item.getQuantity());
+                movement.setBeforeQuantity(before);
+                movement.setAfterQuantity(after);
+                movement.setReferenceType("ORDER");
+                movement.setReferenceId(order.getId());
+                movement.setNote("Nhập lại kho từ đơn hàng đã thanh toán bị hủy #" + order.getOrderCode());
+                inventoryMovementRepository.save(movement);
             }
         }
     }
@@ -148,24 +187,54 @@ public class StockService {
             return;
         }
 
-        ProductVariant v = productVariantRepository.findById(variant.getId()).orElse(null);
-        if (v != null) {
-            int before = v.getStockQuantity();
-            int after = before + quantity;
-            v.setStockQuantity(after);
-            productVariantRepository.save(v);
+        ProductVariant v = findVariantWithLock(variant.getId());
+        int before = v.getStockQuantity();
+        int after = before + quantity;
+        v.setStockQuantity(after);
+        productVariantRepository.save(v);
 
-            InventoryMovement movement = new InventoryMovement();
-            movement.setVariant(v);
-            movement.setMovementType("RETURN_RESTOCK");
-            movement.setQuantity(quantity);
-            movement.setBeforeQuantity(before);
-            movement.setAfterQuantity(after);
-            movement.setReferenceType("RETURN");
-            movement.setReferenceId(returnId);
-            movement.setNote("Nhập lại kho từ yêu cầu đổi/trả hàng #" + returnId);
-            inventoryMovementRepository.save(movement);
+        InventoryMovement movement = new InventoryMovement();
+        movement.setVariant(v);
+        movement.setMovementType("RETURN_RESTOCK");
+        movement.setQuantity(quantity);
+        movement.setBeforeQuantity(before);
+        movement.setAfterQuantity(after);
+        movement.setReferenceType("RETURN");
+        movement.setReferenceId(returnId);
+        movement.setNote("Nhập lại kho từ yêu cầu đổi/trả hàng #" + returnId);
+        inventoryMovementRepository.save(movement);
+    }
+
+    @Transactional
+    public void dispatchExchangeVariant(ProductVariant variant, int quantity, Long returnId) {
+        if (variant == null || quantity <= 0) return;
+
+        // Idempotency: Kiểm tra nếu đã xuất kho biến thể đổi cho returnId này rồi
+        if (returnId != null && inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndVariantIdAndMovementType(
+                "RETURN", returnId, variant.getId(), "RETURN_EXCHANGE_OUT")) {
+            return;
         }
+
+        ProductVariant v = findVariantWithLock(variant.getId());
+        if (v.getStockQuantity() < quantity) {
+            throw new CustomException("Biến thể đổi '" + v.getSku() + "' trong kho chỉ còn " + v.getStockQuantity() + " chiếc, không đủ (" + quantity + ").");
+        }
+
+        int before = v.getStockQuantity();
+        int after = before - quantity;
+        v.setStockQuantity(after);
+        productVariantRepository.save(v);
+
+        InventoryMovement movement = new InventoryMovement();
+        movement.setVariant(v);
+        movement.setMovementType("RETURN_EXCHANGE_OUT");
+        movement.setQuantity(quantity);
+        movement.setBeforeQuantity(before);
+        movement.setAfterQuantity(after);
+        movement.setReferenceType("RETURN");
+        movement.setReferenceId(returnId);
+        movement.setNote("Xuất kho biến thể mới từ yêu cầu đổi hàng #" + returnId);
+        inventoryMovementRepository.save(movement);
     }
 
     @Transactional
@@ -186,8 +255,7 @@ public class StockService {
             ProductVariant v = item.getVariant();
             if (v == null) continue;
 
-            ProductVariant variant = productVariantRepository.findById(v.getId())
-                    .orElseThrow(() -> new CustomException("Biến thể ID: " + v.getId() + " không tồn tại!"));
+            ProductVariant variant = findVariantWithLock(v.getId());
 
             int oldStock = variant.getStockQuantity() != null ? variant.getStockQuantity() : 0;
             BigDecimal oldCost = variant.getImportPrice() != null ? variant.getImportPrice() : BigDecimal.ZERO;

@@ -94,23 +94,64 @@
                                 <strong th:text="${#numbers.formatDecimal(r.refundAmount != null ? r.refundAmount : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</strong>
                             </td>
                             <td>
-                                <span class="badge bg-warning text-dark" th:if="${r.status == 'PENDING' or r.status == 'REQUESTED'}">Chờ duyệt</span>
-                                <span class="badge bg-success" th:if="${r.status == 'COMPLETED'}">Đã giải quyết</span>
-                                <span class="badge bg-danger" th:if="${r.status == 'REJECTED'}">Từ chối</span>
+                                <span class="badge bg-warning text-dark" th:if="${r.status == 'PENDING' or r.status == 'REQUESTED'}">Chờ duyệt (REQUESTED)</span>
+                                <span class="badge bg-info text-dark" th:if="${r.status == 'APPROVED'}">Đã duyệt (APPROVED)</span>
+                                <span class="badge bg-primary" th:if="${r.status == 'PROCESSING'}">Đang kiểm định (PROCESSING)</span>
+                                <span class="badge bg-success" th:if="${r.status == 'COMPLETED'}">Đã hoàn tất (COMPLETED)</span>
+                                <span class="badge bg-danger" th:if="${r.status == 'REJECTED'}">Từ chối (REJECTED)</span>
                             </td>
                             <td>
-                                <form th:if="${r.status == 'PENDING' or r.status == 'REQUESTED'}" th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
-                                    <input type="hidden" name="status" value="COMPLETED">
-                                    <button type="submit" class="btn btn-sm btn-success rounded-pill px-3" title="Chấp thuận & Hoàn tất">
-                                        <i class="bi bi-check-lg me-1"></i>Chấp thuận
-                                    </button>
-                                </form>
-                                <form th:if="${r.status == 'PENDING' or r.status == 'REQUESTED'}" th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline ms-1">
-                                    <input type="hidden" name="status" value="REJECTED">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Từ chối">
-                                        <i class="bi bi-x-lg"></i>
-                                    </button>
-                                </form>
+                                <!-- REQUESTED / PENDING: APPROVE hoặc REJECT -->
+                                <div th:if="${r.status == 'PENDING' or r.status == 'REQUESTED'}" class="d-flex gap-1">
+                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
+                                        <input type="hidden" name="status" value="APPROVE">
+                                        <button type="submit" class="btn btn-sm btn-primary rounded-pill px-2" title="Phê duyệt yêu cầu">
+                                            <i class="bi bi-check-circle me-1"></i>Duyệt
+                                        </button>
+                                    </form>
+                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
+                                        <input type="hidden" name="status" value="REJECT">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Từ chối">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <!-- APPROVED: PROCESS hoặc REJECT -->
+                                <div th:if="${r.status == 'APPROVED'}" class="d-flex gap-1">
+                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
+                                        <input type="hidden" name="status" value="PROCESS">
+                                        <button type="submit" class="btn btn-sm btn-warning text-dark rounded-pill px-2" title="Tiếp nhận kiện hàng">
+                                            <i class="bi bi-box-arrow-in-down me-1"></i>Tiếp nhận
+                                        </button>
+                                    </form>
+                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
+                                        <input type="hidden" name="status" value="REJECT">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Từ chối">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <!-- PROCESSING: COMPLETE hoặc REJECT -->
+                                <div th:if="${r.status == 'PROCESSING'}" class="d-flex gap-1">
+                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
+                                        <input type="hidden" name="status" value="COMPLETE">
+                                        <button type="submit" class="btn btn-sm btn-success rounded-pill px-2" title="Hoàn tất & Hoàn tiền / Xuất đổi">
+                                            <i class="bi bi-check-lg me-1"></i>Hoàn tất
+                                        </button>
+                                    </form>
+                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
+                                        <input type="hidden" name="status" value="REJECT">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Không đạt kiểm định">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <div th:if="${r.status == 'COMPLETED' or r.status == 'REJECTED'}">
+                                    <span class="text-muted small"><i class="bi bi-lock me-1"></i>Đã đóng</span>
+                                </div>
                             </td>
                         </tr>
                     </tbody>

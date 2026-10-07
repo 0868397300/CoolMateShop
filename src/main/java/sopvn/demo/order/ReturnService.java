@@ -101,6 +101,7 @@ public class ReturnService {
             throw new CustomException("Số lượng đổi trả phải lớn hơn 0.");
         }
 
+        // Partial return check: chỉ tính các return đang active (không tính REJECTED)
         List<OrderReturn> prevReturns = orderReturnRepository.findByOrderItemId(orderItemId);
         int alreadyReturned = 0;
         for (OrderReturn r : prevReturns) {
@@ -115,6 +116,8 @@ public class ReturnService {
         }
 
         ProductVariant targetVariant = null;
+        BigDecimal refundAmount = BigDecimal.ZERO;
+
         if ("RETURN_SIZE".equalsIgnoreCase(returnType) || "RETURN_COLOR".equalsIgnoreCase(returnType)) {
             if (targetVariantId == null) {
                 throw new CustomException("Vui lòng chọn biến thể (Màu / Size) muốn đổi sang.");
@@ -136,20 +139,31 @@ public class ReturnService {
             if (targetVariant.getStockQuantity() < quantity) {
                 throw new CustomException("Biến thể muốn đổi trong kho chỉ còn " + targetVariant.getStockQuantity() + " chiếc, không đủ số lượng " + quantity + ".");
             }
+
+            // Xử lý chênh lệch giá nếu có giữa biến thể cũ và biến thể mới
+            BigDecimal origPrice = targetItem.getUnitPrice() != null ? targetItem.getUnitPrice() : BigDecimal.ZERO;
+            BigDecimal newPrice = targetVariant.getSalePrice() != null ? targetVariant.getSalePrice() : origPrice;
+            if (origPrice.compareTo(newPrice) > 0) {
+                // Biến thể mới rẻ hơn: Hoàn lại khoản chênh lệch cho khách
+                refundAmount = origPrice.subtract(newPrice).multiply(BigDecimal.valueOf(quantity));
+            } else {
+                refundAmount = BigDecimal.ZERO;
+            }
+        } else {
+            // Hoàn tiền sản phẩm (Return & Refund)
+            BigDecimal subtotal = order.getSubtotalAmount() != null && order.getSubtotalAmount().compareTo(BigDecimal.ZERO) > 0 
+                    ? order.getSubtotalAmount() : BigDecimal.ONE;
+
+            BigDecimal totalDiscounts = (order.getVoucherDiscountAmount() != null ? order.getVoucherDiscountAmount() : BigDecimal.ZERO)
+                    .add(order.getComboDiscountAmount() != null ? order.getComboDiscountAmount() : BigDecimal.ZERO);
+
+            BigDecimal itemTotalPrice = targetItem.getUnitPrice().multiply(BigDecimal.valueOf(quantity));
+            BigDecimal itemRatio = itemTotalPrice.divide(subtotal, 4, RoundingMode.HALF_UP);
+            BigDecimal itemAllocatedDiscount = totalDiscounts.multiply(itemRatio).setScale(0, RoundingMode.HALF_UP);
+
+            refundAmount = itemTotalPrice.subtract(itemAllocatedDiscount);
+            if (refundAmount.compareTo(BigDecimal.ZERO) < 0) refundAmount = BigDecimal.ZERO;
         }
-
-        BigDecimal subtotal = order.getSubtotalAmount() != null && order.getSubtotalAmount().compareTo(BigDecimal.ZERO) > 0 
-                ? order.getSubtotalAmount() : BigDecimal.ONE;
-
-        BigDecimal totalDiscounts = (order.getVoucherDiscountAmount() != null ? order.getVoucherDiscountAmount() : BigDecimal.ZERO)
-                .add(order.getComboDiscountAmount() != null ? order.getComboDiscountAmount() : BigDecimal.ZERO);
-
-        BigDecimal itemTotalPrice = targetItem.getUnitPrice().multiply(BigDecimal.valueOf(quantity));
-        BigDecimal itemRatio = itemTotalPrice.divide(subtotal, 4, RoundingMode.HALF_UP);
-        BigDecimal itemAllocatedDiscount = totalDiscounts.multiply(itemRatio).setScale(0, RoundingMode.HALF_UP);
-
-        BigDecimal refundAmount = itemTotalPrice.subtract(itemAllocatedDiscount);
-        if (refundAmount.compareTo(BigDecimal.ZERO) < 0) refundAmount = BigDecimal.ZERO;
 
         OrderReturn req = new OrderReturn();
         req.setOrder(order);
@@ -185,7 +199,7 @@ public class ReturnService {
     public void rejectReturn(Long returnId, String rejectReason, User staffUser) {
         OrderReturn req = orderReturnRepository.findById(returnId)
                 .orElseThrow(() -> new CustomException("Không tìm thấy yêu cầu đổi trả #" + returnId));
-        if (!"REQUESTED".equalsIgnoreCase(req.getStatus()) && !"PROCESSING".equalsIgnoreCase(req.getStatus())) {
+        if ("COMPLETED".equalsIgnoreCase(req.getStatus()) || "REJECTED".equalsIgnoreCase(req.getStatus())) {
             throw new CustomException("Yêu cầu này đã kết thúc (" + req.getStatus() + "), không thể từ chối.");
         }
         req.setStatus("REJECTED");
@@ -216,8 +230,9 @@ public class ReturnService {
             return;
         }
 
-        if (!"PROCESSING".equalsIgnoreCase(req.getStatus()) && !"APPROVED".equalsIgnoreCase(req.getStatus())) {
-            throw new CustomException("Yêu cầu phải ở trạng thái APPROVED hoặc PROCESSING mới có thể hoàn tất.");
+        // P0-5: Workflow nghiêm ngặt: REQUESTED -> APPROVED -> PROCESSING -> COMPLETED (không skip)
+        if (!"PROCESSING".equalsIgnoreCase(req.getStatus())) {
+            throw new CustomException("Yêu cầu đổi trả #" + returnId + " phải ở trạng thái PROCESSING (đang kiểm định) mới có thể hoàn tất (trạng thái hiện tại: " + req.getStatus() + ").");
         }
 
         req.setStatus("COMPLETED");
@@ -226,19 +241,19 @@ public class ReturnService {
         req.setRefundStatus("COMPLETED");
         req.setRefundReference("REFUND-" + req.getId() + "-" + System.currentTimeMillis());
 
-        // 1. Nhập kho lại sản phẩm đổi trả (Idempotent theo returnId)
-        stockService.restockFromReturn(req.getOrderItem().getVariant(), req.getQuantity(), req.getId());
+        // 1. Nhập kho lại sản phẩm đổi trả (Idempotent theo returnId qua StockService)
+        if (req.getOrderItem() != null && req.getOrderItem().getVariant() != null) {
+            stockService.restockFromReturn(req.getOrderItem().getVariant(), req.getQuantity(), req.getId());
+        }
 
-        // 2. Nếu là đổi hàng (Exchange) -> xuất kho biến thể mới
+        // 2. Nếu là đổi hàng (Exchange) -> Xuất kho biến thể mới qua StockService (Idempotent theo returnId)
         if (req.getTargetVariant() != null) {
-            ProductVariant target = req.getTargetVariant();
-            target.setStockQuantity(Math.max(0, target.getStockQuantity() - req.getQuantity()));
-            productVariantRepository.save(target);
+            stockService.dispatchExchangeVariant(req.getTargetVariant(), req.getQuantity(), req.getId());
         }
 
         // 3. Hoàn tiền nếu có (Idempotent theo returnId)
         if (req.getRefundAmount() != null && req.getRefundAmount().compareTo(BigDecimal.ZERO) > 0) {
-            if ("COOLCASH".equalsIgnoreCase(refundMethod)) {
+            if ("COOLCASH".equalsIgnoreCase(refundMethod) || refundMethod == null) {
                 coolCashService.refundCoolCash(req.getUser(), req.getOrder(), req.getRefundAmount(), 
                         "Hoàn tiền ví CoolCash từ yêu cầu đổi trả #" + req.getId() + " (Đơn #" + req.getOrder().getOrderCode() + ")",
                         "RETURN_REFUND:" + req.getId());
@@ -283,14 +298,26 @@ public class ReturnService {
 
     @Transactional
     public void processReturnApproval(Long returnId, String action, String refundMethod, String rejectReason, User staffUser) {
-        if ("REJECT".equalsIgnoreCase(action)) {
-            rejectReturn(returnId, rejectReason, staffUser);
-        } else if ("APPROVE".equalsIgnoreCase(action)) {
-            approveReturn(returnId, staffUser);
-        } else if ("PROCESS".equalsIgnoreCase(action)) {
-            startProcessingReturn(returnId, staffUser);
-        } else {
-            completeReturn(returnId, refundMethod, staffUser);
+        if (action == null || action.isBlank()) {
+            throw new CustomException("Hành động xử lý đổi trả không được để trống.");
+        }
+
+        String act = action.trim().toUpperCase();
+        switch (act) {
+            case "APPROVE":
+                approveReturn(returnId, staffUser);
+                break;
+            case "REJECT":
+                rejectReturn(returnId, rejectReason, staffUser);
+                break;
+            case "PROCESS":
+                startProcessingReturn(returnId, staffUser);
+                break;
+            case "COMPLETE":
+                completeReturn(returnId, refundMethod, staffUser);
+                break;
+            default:
+                throw new CustomException("Hành động xử lý đổi trả không hợp lệ: '" + action + "'. Chỉ chấp nhận: APPROVE, REJECT, PROCESS, COMPLETE.");
         }
     }
 }

@@ -25,6 +25,15 @@ public class CoolCashService {
         this.coolCashTransactionRepository = coolCashTransactionRepository;
     }
 
+    private User findUserWithLock(Long userId, User fallback) {
+        if (userId == null) return fallback;
+        Optional<User> locked = userRepository.findByIdForUpdate(userId);
+        if (locked.isPresent()) {
+            return locked.get();
+        }
+        return userRepository.findById(userId).orElse(fallback);
+    }
+
     @Transactional(readOnly = true)
     public List<CoolCashTransaction> getUserTransactions(Long userId) {
         return coolCashTransactionRepository.findByUserIdOrderByCreatedAtDesc(userId);
@@ -40,12 +49,15 @@ public class CoolCashService {
             return; // Đã nhận cashback cho đơn hàng này rồi
         }
 
-        BigDecimal current = user.getCoolcashBalance() != null ? user.getCoolcashBalance() : BigDecimal.ZERO;
-        user.setCoolcashBalance(current.add(amount));
-        userRepository.save(user);
+        User lockedUser = findUserWithLock(user.getId(), user);
+        BigDecimal current = lockedUser.getCoolcashBalance() != null ? lockedUser.getCoolcashBalance() : BigDecimal.ZERO;
+        BigDecimal newBal = current.add(amount);
+        lockedUser.setCoolcashBalance(newBal);
+        userRepository.save(lockedUser);
+        user.setCoolcashBalance(newBal);
 
         CoolCashTransaction tx = new CoolCashTransaction();
-        tx.setUser(user);
+        tx.setUser(lockedUser);
         tx.setOrder(order);
         tx.setAmount(amount);
         tx.setTransactionType("EARN_ORDER");
@@ -66,14 +78,16 @@ public class CoolCashService {
             return; // Đã thu hồi rồi, không trừ lặp
         }
 
-        BigDecimal current = user.getCoolcashBalance() != null ? user.getCoolcashBalance() : BigDecimal.ZERO;
+        User lockedUser = findUserWithLock(user.getId(), user);
+        BigDecimal current = lockedUser.getCoolcashBalance() != null ? lockedUser.getCoolcashBalance() : BigDecimal.ZERO;
         BigDecimal newBal = current.subtract(amount);
         if (newBal.compareTo(BigDecimal.ZERO) < 0) newBal = BigDecimal.ZERO;
+        lockedUser.setCoolcashBalance(newBal);
+        userRepository.save(lockedUser);
         user.setCoolcashBalance(newBal);
-        userRepository.save(user);
 
         CoolCashTransaction tx = new CoolCashTransaction();
-        tx.setUser(user);
+        tx.setUser(lockedUser);
         tx.setOrder(order);
         tx.setAmount(amount.negate());
         tx.setTransactionType("REVOKE_RETURN");
@@ -94,16 +108,22 @@ public class CoolCashService {
             return; // Đã giữ rồi
         }
 
-        BigDecimal current = user.getCoolcashBalance() != null ? user.getCoolcashBalance() : BigDecimal.ZERO;
+        User lockedUser = findUserWithLock(user.getId(), user);
+        BigDecimal current = lockedUser.getCoolcashBalance() != null ? lockedUser.getCoolcashBalance() : BigDecimal.ZERO;
         if (current.compareTo(amount) < 0) {
             throw new CustomException("Số dư ví CoolCash không đủ (Số dư: " + current + "đ, yêu cầu: " + amount + "đ).");
         }
 
-        user.setCoolcashBalance(current.subtract(amount));
-        userRepository.save(user);
+        BigDecimal newBal = current.subtract(amount);
+        if (newBal.compareTo(BigDecimal.ZERO) < 0) {
+            throw new CustomException("Số dư ví không thể âm.");
+        }
+        lockedUser.setCoolcashBalance(newBal);
+        userRepository.save(lockedUser);
+        user.setCoolcashBalance(newBal);
 
         CoolCashTransaction tx = new CoolCashTransaction();
-        tx.setUser(user);
+        tx.setUser(lockedUser);
         tx.setOrder(order);
         tx.setAmount(amount.negate());
         tx.setTransactionType("SPEND_ORDER");
@@ -123,9 +143,11 @@ public class CoolCashService {
         Optional<CoolCashTransaction> reserveOpt = coolCashTransactionRepository.findByIdempotencyKey(reserveKey);
         if (reserveOpt.isPresent()) {
             CoolCashTransaction tx = reserveOpt.get();
-            tx.setStatus("COMPLETED");
-            tx.setDescription("Thanh toán thành công đơn hàng #" + order.getOrderCode() + " [" + idempotencyKey + "]");
-            coolCashTransactionRepository.save(tx);
+            if (!"COMPLETED".equalsIgnoreCase(tx.getStatus())) {
+                tx.setStatus("COMPLETED");
+                tx.setDescription("Thanh toán thành công đơn hàng #" + order.getOrderCode() + " [" + idempotencyKey + "]");
+                coolCashTransactionRepository.save(tx);
+            }
             return;
         }
 
@@ -152,18 +174,21 @@ public class CoolCashService {
         }
 
         // Hoàn lại tiền vào số dư cho user
-        BigDecimal current = user.getCoolcashBalance() != null ? user.getCoolcashBalance() : BigDecimal.ZERO;
-        user.setCoolcashBalance(current.add(amount));
-        userRepository.save(user);
+        User lockedUser = findUserWithLock(user.getId(), user);
+        BigDecimal current = lockedUser.getCoolcashBalance() != null ? lockedUser.getCoolcashBalance() : BigDecimal.ZERO;
+        BigDecimal newBal = current.add(amount);
+        lockedUser.setCoolcashBalance(newBal);
+        userRepository.save(lockedUser);
+        user.setCoolcashBalance(newBal);
 
         CoolCashTransaction refundTx = new CoolCashTransaction();
-        refundTx.setUser(user);
+        refundTx.setUser(lockedUser);
         refundTx.setOrder(order);
         refundTx.setAmount(amount);
         refundTx.setTransactionType("REFUND_ORDER");
         refundTx.setStatus("COMPLETED");
         refundTx.setIdempotencyKey(releaseKey);
-        refundTx.setDescription("Giải phóng tiền tạm giữ đơn hàng VNPAY thất bại #" + order.getOrderCode());
+        refundTx.setDescription("Giải phóng tiền tạm giữ đơn hàng VNPAY thất bại/hủy #" + order.getOrderCode());
         refundTx.setCreatedAt(LocalDateTime.now());
         coolCashTransactionRepository.save(refundTx);
     }
@@ -178,16 +203,22 @@ public class CoolCashService {
             return; // Đã trừ rồi, bỏ qua idempotent
         }
 
-        BigDecimal current = user.getCoolcashBalance() != null ? user.getCoolcashBalance() : BigDecimal.ZERO;
+        User lockedUser = findUserWithLock(user.getId(), user);
+        BigDecimal current = lockedUser.getCoolcashBalance() != null ? lockedUser.getCoolcashBalance() : BigDecimal.ZERO;
         if (current.compareTo(amount) < 0) {
             throw new CustomException("Số dư ví CoolCash không đủ (Số dư hiện tại: " + current + "đ, yêu cầu: " + amount + "đ).");
         }
 
-        user.setCoolcashBalance(current.subtract(amount));
-        userRepository.save(user);
+        BigDecimal newBal = current.subtract(amount);
+        if (newBal.compareTo(BigDecimal.ZERO) < 0) {
+            throw new CustomException("Số dư ví không thể âm.");
+        }
+        lockedUser.setCoolcashBalance(newBal);
+        userRepository.save(lockedUser);
+        user.setCoolcashBalance(newBal);
 
         CoolCashTransaction tx = new CoolCashTransaction();
-        tx.setUser(user);
+        tx.setUser(lockedUser);
         tx.setOrder(order);
         tx.setAmount(amount.negate());
         tx.setTransactionType("SPEND_ORDER");
@@ -213,12 +244,15 @@ public class CoolCashService {
             return; // Đã hoàn tiền rồi, bỏ qua
         }
 
-        BigDecimal current = user.getCoolcashBalance() != null ? user.getCoolcashBalance() : BigDecimal.ZERO;
-        user.setCoolcashBalance(current.add(amount));
-        userRepository.save(user);
+        User lockedUser = findUserWithLock(user.getId(), user);
+        BigDecimal current = lockedUser.getCoolcashBalance() != null ? lockedUser.getCoolcashBalance() : BigDecimal.ZERO;
+        BigDecimal newBal = current.add(amount);
+        lockedUser.setCoolcashBalance(newBal);
+        userRepository.save(lockedUser);
+        user.setCoolcashBalance(newBal);
 
         CoolCashTransaction tx = new CoolCashTransaction();
-        tx.setUser(user);
+        tx.setUser(lockedUser);
         tx.setOrder(order);
         tx.setAmount(amount);
         tx.setTransactionType("REFUND_RETURN");
@@ -239,16 +273,18 @@ public class CoolCashService {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) return;
         if (user == null) return;
 
+        User lockedUser = findUserWithLock(user.getId(), user);
         BigDecimal actualAmount = "MINUS".equalsIgnoreCase(type) ? amount.negate() : amount;
-        BigDecimal current = user.getCoolcashBalance() != null ? user.getCoolcashBalance() : BigDecimal.ZERO;
+        BigDecimal current = lockedUser.getCoolcashBalance() != null ? lockedUser.getCoolcashBalance() : BigDecimal.ZERO;
         BigDecimal newBal = current.add(actualAmount);
         if (newBal.compareTo(BigDecimal.ZERO) < 0) newBal = BigDecimal.ZERO;
 
+        lockedUser.setCoolcashBalance(newBal);
+        userRepository.save(lockedUser);
         user.setCoolcashBalance(newBal);
-        userRepository.save(user);
 
         CoolCashTransaction tx = new CoolCashTransaction();
-        tx.setUser(user);
+        tx.setUser(lockedUser);
         tx.setAmount(actualAmount);
         tx.setTransactionType("ADMIN_ADJUST");
         tx.setStatus("COMPLETED");

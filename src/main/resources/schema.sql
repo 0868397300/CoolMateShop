@@ -427,3 +427,13 @@ BEGIN
         [created_at] DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 END;
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_PromotionUsage_Order_Promo' AND object_id = OBJECT_ID(N'[dbo].[Promotion_Usages]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [UQ_PromotionUsage_Order_Promo] ON [dbo].[Promotion_Usages]([order_id], [promotion_id]) WHERE [order_id] IS NOT NULL;
+END;
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Users_CoolcashBalance')
+BEGIN
+    ALTER TABLE [dbo].[Users] ADD CONSTRAINT [CK_Users_CoolcashBalance] CHECK ([coolcash_balance] >= 0);
+END;

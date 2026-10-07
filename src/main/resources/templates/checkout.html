@@ -189,7 +189,7 @@
                                         Màu: <span th:text="${it.colorName}">Đen</span> | Size: <span th:text="${it.sizeName}">L</span> x <span th:text="${it.quantity}">1</span>
                                     </small>
                                 </div>
-                                <div class="small fw-bold text-end" th:text="${#numbers.formatDecimal((it.itemSubtotal != null ? it.itemSubtotal : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">
+                                <div class="small fw-bold text-end" th:text="${#numbers.formatDecimal((it.itemSubtotal != null ? it.itemSubtotal : 0), 1, 'COMMA', 0, 'POINT')} + 'đ'">
                                     249,000đ
                                 </div>
                             </div>
@@ -204,13 +204,13 @@
                             </div>
                         </div>
 
-                        <div class="mb-3 p-3 bg-light rounded-3" th:if="${user != null and user.coolcashBalance != null and user.coolcashBalance > 0}">
+                        <div class="mb-3 p-3 bg-light rounded-3" th:if="${user != null and user.coolcashBalance != null and user.coolcashBalance.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
                             <div class="form-check form-switch d-flex align-items-center justify-content-between ps-0">
                                 <div>
                                     <label class="form-check-label fw-bold small d-block" for="useCoolCashSwitch">
                                         <i class="bi bi-wallet2 text-success me-1"></i>Sử dụng ví CoolCash
                                     </label>
-                                    <small class="text-muted">Số dư khả dụng: <strong class="text-success" th:text="${#numbers.formatDecimal(user.coolcashBalance, 0, 'COMMA', 0, 'POINT')} + 'đ'">100,000đ</strong> (Tối đa 50% đơn)</small>
+                                    <small class="text-muted">Số dư khả dụng: <strong class="text-success" th:text="${#numbers.formatDecimal(user.coolcashBalance, 1, 'COMMA', 0, 'POINT')} + 'đ'">100,000đ</strong> (Tối đa 50% đơn)</small>
                                 </div>
                                 <input class="form-check-input ms-2" type="checkbox" name="useCoolCash" value="true" id="useCoolCashSwitch" th:checked="${useCoolCash}">
                             </div>
@@ -219,25 +219,25 @@
                         <!-- Calculations from Server Source of Truth -->
                         <div class="d-flex justify-content-between mb-2 small">
                             <span class="text-muted">Tạm tính tiền hàng:</span>
-                            <strong id="displaySubtotal" th:attr="data-val=${pricing.subtotal}" th:text="${#numbers.formatDecimal((pricing.subtotal != null ? pricing.subtotal : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</strong>
+                            <strong id="displaySubtotal" th:attr="data-val=${pricing.subtotal}" th:text="${#numbers.formatDecimal((pricing.subtotal != null ? pricing.subtotal : 0), 1, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</strong>
                         </div>
-                        <div class="d-flex justify-content-between mb-2 small" th:if="${pricing.comboDiscount != null and pricing.comboDiscount > 0}">
+                        <div class="d-flex justify-content-between mb-2 small" th:if="${pricing.comboDiscount != null and pricing.comboDiscount.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
                             <span class="text-success"><i class="bi bi-tag-fill me-1"></i>Giảm giá Combo:</span>
-                            <strong id="displayComboDiscount" class="text-success" th:attr="data-val=${pricing.comboDiscount}" th:text="'-' + ${#numbers.formatDecimal(pricing.comboDiscount, 0, 'COMMA', 0, 'POINT')} + 'đ'">-24,000đ</strong>
+                            <strong id="displayComboDiscount" class="text-success" th:attr="data-val=${pricing.comboDiscount}" th:text="'-' + ${#numbers.formatDecimal(pricing.comboDiscount, 1, 'COMMA', 0, 'POINT')} + 'đ'">-24,000đ</strong>
                         </div>
-                        <div class="d-flex justify-content-between mb-2 small" th:if="${pricing.voucherDiscount != null and pricing.voucherDiscount > 0}">
+                        <div class="d-flex justify-content-between mb-2 small" th:if="${pricing.voucherDiscount != null and pricing.voucherDiscount.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
                             <span class="text-success"><i class="bi bi-ticket-perforated-fill me-1"></i>Giảm giá Voucher:</span>
-                            <strong id="displayVoucherDiscount" class="text-success" th:attr="data-val=${pricing.voucherDiscount}" th:text="'-' + ${#numbers.formatDecimal(pricing.voucherDiscount, 0, 'COMMA', 0, 'POINT')} + 'đ'">-30,000đ</strong>
+                            <strong id="displayVoucherDiscount" class="text-success" th:attr="data-val=${pricing.voucherDiscount}" th:text="'-' + ${#numbers.formatDecimal(pricing.voucherDiscount, 1, 'COMMA', 0, 'POINT')} + 'đ'">-30,000đ</strong>
                         </div>
-                        <div class="d-flex justify-content-between mb-2 small" th:if="${pricing.coolcashUsed != null and pricing.coolcashUsed > 0}">
+                        <div class="d-flex justify-content-between mb-2 small" th:if="${pricing.coolcashUsed != null and pricing.coolcashUsed.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
                             <span class="text-primary"><i class="bi bi-wallet2 me-1"></i>Trừ ví CoolCash:</span>
-                            <strong id="displayCoolcashUsed" class="text-primary" th:attr="data-val=${pricing.coolcashUsed}" th:text="'-' + ${#numbers.formatDecimal(pricing.coolcashUsed, 0, 'COMMA', 0, 'POINT')} + 'đ'">-50,000đ</strong>
+                            <strong id="displayCoolcashUsed" class="text-primary" th:attr="data-val=${pricing.coolcashUsed}" th:text="'-' + ${#numbers.formatDecimal(pricing.coolcashUsed, 1, 'COMMA', 0, 'POINT')} + 'đ'">-50,000đ</strong>
                         </div>
                         <div class="d-flex justify-content-between mb-2 small">
                             <span class="text-muted">Phí vận chuyển giao hàng:</span>
                             <span id="displayShippingFee" class="fw-bold text-primary" th:attr="data-val=${pricing.shippingFee}">
                                 <span th:if="${pricing.freeshipQualified}" class="text-success">0đ (Freeship)</span>
-                                <span th:unless="${pricing.freeshipQualified}" th:text="${#numbers.formatDecimal((pricing.shippingFee != null ? pricing.shippingFee : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">25,000đ</span>
+                                <span th:unless="${pricing.freeshipQualified}" th:text="${#numbers.formatDecimal((pricing.shippingFee != null ? pricing.shippingFee : 0), 1, 'COMMA', 0, 'POINT')} + 'đ'">25,000đ</span>
                             </span>
                         </div>
                         <div id="shippingNote" class="small text-muted mb-3" style="font-size: 0.8rem;">
@@ -250,7 +250,7 @@
                         <!-- Tổng thanh toán: subtotal - combo - voucher - CoolCash + shipping -->
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <span class="fw-bold">Tổng Thanh Toán:</span>
-                            <span class="fs-4 fw-bold text-primary" id="displayFinalTotal" th:text="${#numbers.formatDecimal((pricing.finalAmount != null ? pricing.finalAmount : 0), 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</span>
+                            <span class="fs-4 fw-bold text-primary" id="displayFinalTotal" th:text="${#numbers.formatDecimal((pricing.finalAmount != null ? pricing.finalAmount : 0), 1, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</span>
                         </div>
 
                         <button type="submit" class="btn btn-dark btn-lg w-100 rounded-pill fw-bold py-3">

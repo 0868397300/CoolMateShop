@@ -21,6 +21,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -57,6 +58,15 @@ public class OrderService {
         this.coolCashService = coolCashService;
         this.notificationService = notificationService;
         this.userRepository = userRepository;
+    }
+
+    private Promotion findPromotionWithLock(Long promoId) {
+        Optional<Promotion> opt = promotionRepository.findByIdForUpdate(promoId);
+        if (opt.isPresent()) {
+            return opt.get();
+        }
+        return promotionRepository.findById(promoId)
+                .orElseThrow(() -> new CustomException("Mã giảm giá không tồn tại: " + promoId));
     }
 
     @Transactional
@@ -142,30 +152,64 @@ public class OrderService {
         // 3. Giữ tồn kho nguyên tử (Stock Reservation)
         stockService.reserveStock(savedItems, order);
 
-        // 4. CoolCash & Voucher Handling
+        // 4. Voucher Concurrency Check & Handling under DB Lock
+        if (pricing.getAppliedPromotion() != null) {
+            Promotion promo = pricing.getAppliedPromotion();
+            Promotion lockedPromo = findPromotionWithLock(promo.getId());
+
+            if (!Boolean.TRUE.equals(lockedPromo.getIsActive())) {
+                throw new CustomException("Mã giảm giá '" + lockedPromo.getCode() + "' đã tạm ngưng áp dụng.");
+            }
+
+            LocalDateTime now = LocalDateTime.now();
+            if (lockedPromo.getStartDate() != null && now.isBefore(lockedPromo.getStartDate())) {
+                throw new CustomException("Mã giảm giá '" + lockedPromo.getCode() + "' chưa đến ngày áp dụng.");
+            }
+            if (lockedPromo.getEndDate() != null && now.isAfter(lockedPromo.getEndDate())) {
+                throw new CustomException("Mã giảm giá '" + lockedPromo.getCode() + "' đã hết hạn sử dụng.");
+            }
+
+            // Chống 2 checkout đồng thời vượt giới hạn sử dụng tổng
+            if (lockedPromo.getUsageLimit() != null) {
+                long activeUsages = promotionUsageRepository.countByPromotionIdAndStatusNot(lockedPromo.getId(), "RELEASED");
+                if (activeUsages >= lockedPromo.getUsageLimit()) {
+                    throw new CustomException("Mã giảm giá '" + lockedPromo.getCode() + "' vừa hết lượt sử dụng.");
+                }
+            }
+
+            // Chống 1 khách hàng áp dụng voucher nhiều lần đồng thời
+            if (user != null && lockedPromo.getId() != null) {
+                boolean alreadyUsed = promotionUsageRepository.existsByPromotionIdAndUserIdAndStatusNot(lockedPromo.getId(), user.getId(), "RELEASED");
+                if (alreadyUsed) {
+                    throw new CustomException("Bạn đã sử dụng mã giảm giá này trên một đơn hàng khác đang xử lý.");
+                }
+            }
+
+            if (!promotionUsageRepository.existsByOrderIdAndPromotionId(order.getId(), lockedPromo.getId())) {
+                if ("COD".equalsIgnoreCase(paymentMethod)) {
+                    lockedPromo.setUsedCount(lockedPromo.getUsedCount() != null ? lockedPromo.getUsedCount() + 1 : 1);
+                    promotionRepository.save(lockedPromo);
+
+                    PromotionUsage usage = new PromotionUsage(lockedPromo, user, order, pricing.getVoucherDiscount(), "FINALIZED");
+                    promotionUsageRepository.save(usage);
+                } else {
+                    // VNPAY: Tạm giữ ở trạng thái RESERVED, chưa tăng usedCount
+                    PromotionUsage usage = new PromotionUsage(lockedPromo, user, order, pricing.getVoucherDiscount(), "RESERVED");
+                    promotionUsageRepository.save(usage);
+                }
+            }
+        }
+
+        // 5. CoolCash Handling
         if ("COD".equalsIgnoreCase(paymentMethod)) {
             // COD: Trừ CoolCash ngay nếu có
             if (user != null && pricing.getCoolcashUsed().compareTo(BigDecimal.ZERO) > 0) {
                 coolCashService.spendCoolCash(user, order, pricing.getCoolcashUsed(), "ORDER_COOLCASH_SPEND:" + order.getId());
             }
-            // Ghi nhận Voucher FINALIZED
-            if (pricing.getAppliedPromotion() != null) {
-                Promotion promo = pricing.getAppliedPromotion();
-                promo.setUsedCount(promo.getUsedCount() + 1);
-                promotionRepository.save(promo);
-
-                PromotionUsage usage = new PromotionUsage(promo, user, order, pricing.getVoucherDiscount(), "FINALIZED");
-                promotionUsageRepository.save(usage);
-            }
         } else {
-            // VNPAY: Tạm giữ CoolCash và Voucher ở trạng thái RESERVED
+            // VNPAY: Tạm giữ CoolCash ở trạng thái RESERVED
             if (user != null && pricing.getCoolcashUsed().compareTo(BigDecimal.ZERO) > 0) {
                 coolCashService.reserveCoolCash(user, order, pricing.getCoolcashUsed(), "ORDER_COOLCASH_RESERVE:" + order.getId());
-            }
-            if (pricing.getAppliedPromotion() != null) {
-                Promotion promo = pricing.getAppliedPromotion();
-                PromotionUsage usage = new PromotionUsage(promo, user, order, pricing.getVoucherDiscount(), "RESERVED");
-                promotionUsageRepository.save(usage);
             }
         }
 
@@ -200,26 +244,57 @@ public class OrderService {
             }
         }
 
+        boolean wasPaid = "PAID".equalsIgnoreCase(order.getPaymentStatus());
+
         order.setOrderStatus("CANCELLED");
         order.setCancelledAt(LocalDateTime.now());
         order.setCancelledReason(reason != null ? reason : "Người dùng hoặc quản trị viên hủy đơn");
+        if (wasPaid) {
+            order.setPaymentStatus("REFUND_PENDING");
+        } else {
+            order.setPaymentStatus("CANCELLED");
+        }
         order.setUpdatedAt(LocalDateTime.now());
         orderRepository.save(order);
 
-        // 1. Giải phóng tồn kho đã giữ
-        stockService.releaseStock(order);
-
-        // 2. Release Voucher usage để khách có thể tái sử dụng
-        List<PromotionUsage> usages = promotionUsageRepository.findByOrderId(order.getId());
-        for (PromotionUsage u : usages) {
-            u.setStatus("RELEASED");
-            promotionUsageRepository.save(u);
+        // 1. Phân biệt hoàn kho: stock RESERVED vs stock CONSUMED
+        if (wasPaid) {
+            // Đơn hàng đã PAID -> Stock đã CONSUMED -> Nhập lại kho (restock)
+            stockService.restockCancelledOrder(order);
+        } else {
+            // Đơn hàng chưa thanh toán -> Stock mới chỉ RESERVED -> Giải phóng reservation
+            stockService.releaseStock(order);
         }
 
-        // 3. Hoàn lại CoolCash đã giữ hoặc đã chi tiêu
+        // 2. Release Voucher usage
+        List<PromotionUsage> usages = promotionUsageRepository.findByOrderId(order.getId());
+        for (PromotionUsage u : usages) {
+            boolean wasFinalized = "FINALIZED".equalsIgnoreCase(u.getStatus());
+            u.setStatus("RELEASED");
+            promotionUsageRepository.save(u);
+
+            // Nếu voucher đã được FINALIZED trước đó (đã tăng usedCount), giảm lại usedCount
+            if (wasFinalized && u.getPromotion() != null) {
+                Promotion p = findPromotionWithLock(u.getPromotion().getId());
+                if (p.getUsedCount() != null && p.getUsedCount() > 0) {
+                    p.setUsedCount(p.getUsedCount() - 1);
+                    promotionRepository.save(p);
+                }
+            }
+        }
+
+        // 3. Phân biệt CoolCash: RESERVED vs FINALIZED
         if (order.getUser() != null && order.getCoolcashUsed() != null && order.getCoolcashUsed().compareTo(BigDecimal.ZERO) > 0) {
-            coolCashService.releaseReservedCoolCash(order.getUser(), order, order.getCoolcashUsed(), 
-                    "ORDER_COOLCASH_RELEASE:" + order.getId());
+            if (wasPaid) {
+                // Đơn đã thanh toán: CoolCash đã FINALIZED -> Dùng refundCoolCash với idempotency riêng
+                coolCashService.refundCoolCash(order.getUser(), order, order.getCoolcashUsed(),
+                        "Hoàn lại CoolCash khi hủy đơn hàng đã thanh toán #" + order.getOrderCode(),
+                        "ORDER_CANCEL_REFUND_COOLCASH:" + order.getId());
+            } else {
+                // Đơn chưa thanh toán: CoolCash mới chỉ RESERVED -> Dùng releaseReservedCoolCash
+                coolCashService.releaseReservedCoolCash(order.getUser(), order, order.getCoolcashUsed(), 
+                        "ORDER_COOLCASH_RELEASE:" + order.getId());
+            }
         }
 
         notificationService.notifyOrderCancelled(order, reason);
@@ -234,17 +309,22 @@ public class OrderService {
             return;
         }
 
-        order.setOrderStatus("COMPLETED");
-        // Chỉ đánh dấu PAID nếu là COD và xác nhận nhận hàng
-        if ("COD".equalsIgnoreCase(order.getPaymentMethod())) {
+        // P0-1: Không được cho VNPAY order chưa thanh toán đi đến COMPLETED
+        if ("VNPAY".equalsIgnoreCase(order.getPaymentMethod())) {
+            if (!"PAID".equalsIgnoreCase(order.getPaymentStatus())) {
+                throw new CustomException("Không thể hoàn tất đơn hàng VNPAY khi chưa thanh toán thành công (Payment Status: " + order.getPaymentStatus() + ").");
+            }
+        } else if ("COD".equalsIgnoreCase(order.getPaymentMethod())) {
             order.setPaymentStatus("PAID");
         }
+
+        order.setOrderStatus("COMPLETED");
         if (order.getDeliveredAt() == null) {
             order.setDeliveredAt(LocalDateTime.now());
         }
         order.setUpdatedAt(LocalDateTime.now());
 
-        // Trao thưởng CoolCash theo hạng thành viên
+        // Trao thưởng CoolCash theo hạng thành viên CHỈ KHI đơn hàng PAID
         User user = order.getUser();
         if (user != null) {
             String tier = user.getMembershipTier() != null ? user.getMembershipTier().toUpperCase() : "NEW";
@@ -299,11 +379,16 @@ public class OrderService {
             return;
         }
 
-        if ("PENDING".equals(currentStatus) && !"CONFIRMED".equals(next) && !"CANCELLED".equals(next)) {
+        // P0-1: Ngăn chặn đơn VNPAY chưa thanh toán chuyển trạng thái tới CONFIRMED/SHIPPING/DELIVERED/COMPLETED
+        if ("VNPAY".equalsIgnoreCase(order.getPaymentMethod()) && !"PAID".equalsIgnoreCase(order.getPaymentStatus())) {
+            throw new CustomException("Đơn hàng VNPAY chưa thanh toán thành công (" + order.getPaymentStatus() + "), không thể chuyển sang trạng thái " + next + ".");
+        }
+
+        if ("PENDING".equals(currentStatus) && !"CONFIRMED".equals(next)) {
             throw new CustomException("Đơn hàng PENDING chỉ có thể chuyển sang CONFIRMED hoặc CANCELLED.");
         }
 
-        if ("CONFIRMED".equals(currentStatus) && !"SHIPPING".equals(next) && !"CANCELLED".equals(next)) {
+        if ("CONFIRMED".equals(currentStatus) && !"SHIPPING".equals(next)) {
             throw new CustomException("Đơn hàng CONFIRMED chỉ có thể chuyển sang SHIPPING hoặc CANCELLED.");
         }
 
