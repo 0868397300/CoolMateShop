@@ -108,6 +108,22 @@ public class Order {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "refund_status", length = 30)
+    private String refundStatus;
+
+    @Column(name = "refund_reference", length = 100)
+    private String refundReference;
+
+    @Column(name = "refund_amount", precision = 18, scale = 2)
+    private BigDecimal refundAmount;
+
+    @Column(name = "refund_processed_at")
+    private LocalDateTime refundProcessedAt;
+
+    @Column(name = "refund_note", length = 500)
+    private String refundNote;
+
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<OrderItem> items = new ArrayList<>();
 
@@ -326,5 +342,46 @@ public class Order {
 
     public String getPaymentFailureReason() { return paymentFailureReason; }
     public void setPaymentFailureReason(String paymentFailureReason) { this.paymentFailureReason = paymentFailureReason; }
+
+
+    public String getRefundStatus() {
+        return refundStatus;
+    }
+
+    public void setRefundStatus(String refundStatus) {
+        this.refundStatus = refundStatus;
+    }
+
+    public String getRefundReference() {
+        return refundReference;
+    }
+
+    public void setRefundReference(String refundReference) {
+        this.refundReference = refundReference;
+    }
+
+    public BigDecimal getRefundAmount() {
+        return refundAmount;
+    }
+
+    public void setRefundAmount(BigDecimal refundAmount) {
+        this.refundAmount = refundAmount;
+    }
+
+    public LocalDateTime getRefundProcessedAt() {
+        return refundProcessedAt;
+    }
+
+    public void setRefundProcessedAt(LocalDateTime refundProcessedAt) {
+        this.refundProcessedAt = refundProcessedAt;
+    }
+
+    public String getRefundNote() {
+        return refundNote;
+    }
+
+    public void setRefundNote(String refundNote) {
+        this.refundNote = refundNote;
+    }
 
 }

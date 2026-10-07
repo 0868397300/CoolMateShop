@@ -1,5 +1,7 @@
 package sopvn.demo.inventory;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sopvn.demo.core.exception.CustomException;
@@ -16,6 +18,8 @@ import java.util.Optional;
 
 @Service
 public class StockService {
+
+    private static final Logger log = LoggerFactory.getLogger(StockService.class);
 
     private final ProductVariantRepository productVariantRepository;
     private final InventoryMovementRepository inventoryMovementRepository;
@@ -117,6 +121,18 @@ public class StockService {
             return;
         }
 
+        // P0-8: Chặn ORDER_RELEASE nếu hàng đã bị CONSUMED hoặc đã RESTOCK để tránh lạm phát tồn kho
+        if (inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType(
+                "ORDER", order.getId(), "ORDER_CONSUME")) {
+            log.warn("Không thể thực hiện ORDER_RELEASE cho đơn #{} vì hàng đã bị xuất bán (ORDER_CONSUME).", order.getId());
+            return;
+        }
+        if (inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType(
+                "ORDER", order.getId(), "ORDER_CANCEL_RESTOCK")) {
+            log.warn("Không thể thực hiện ORDER_RELEASE cho đơn #{} vì hàng đã được nhập lại kho (ORDER_CANCEL_RESTOCK).", order.getId());
+            return;
+        }
+
         // Chỉ hoàn kho nếu trước đó thực sự đã reserve
         if (!inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType(
                 "ORDER", order.getId(), "ORDER_RESERVE")) {
@@ -152,6 +168,18 @@ public class StockService {
         // Idempotency: Đã restock đơn hủy này rồi thì bỏ qua
         if (inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType(
                 "ORDER", order.getId(), "ORDER_CANCEL_RESTOCK")) {
+            return;
+        }
+
+        // P0-8: Chỉ restock khi đơn hàng thực tế đã từng bị CONSUMED và chưa từng RELEASE
+        if (!inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType(
+                "ORDER", order.getId(), "ORDER_CONSUME")) {
+            log.warn("Đơn hàng #{} chưa từng xuất bán (ORDER_CONSUME), không thể restock.", order.getId());
+            return;
+        }
+        if (inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType(
+                "ORDER", order.getId(), "ORDER_RELEASE")) {
+            log.warn("Đơn hàng #{} đã bị release trước đó, không thể restock lần nữa.", order.getId());
             return;
         }
 
@@ -234,6 +262,34 @@ public class StockService {
         movement.setReferenceType("RETURN");
         movement.setReferenceId(returnId);
         movement.setNote("Xuất kho biến thể mới từ yêu cầu đổi hàng #" + returnId);
+        inventoryMovementRepository.save(movement);
+    }
+
+    @Transactional
+    public void adjustStockAudited(ProductVariant variant, int newQuantity, String reason, User adminUser) {
+        if (variant == null) return;
+        if (newQuantity < 0) {
+            throw new CustomException("Số lượng tồn kho không được âm: " + newQuantity);
+        }
+
+        ProductVariant v = findVariantWithLock(variant.getId());
+        int before = v.getStockQuantity() != null ? v.getStockQuantity() : 0;
+        int delta = newQuantity - before;
+        if (delta == 0) return;
+
+        v.setStockQuantity(newQuantity);
+        productVariantRepository.save(v);
+
+        InventoryMovement movement = new InventoryMovement();
+        movement.setVariant(v);
+        movement.setMovementType("ADJUSTMENT");
+        movement.setQuantity(Math.abs(delta));
+        movement.setBeforeQuantity(before);
+        movement.setAfterQuantity(newQuantity);
+        movement.setReferenceType("MANUAL_ADJUSTMENT");
+        movement.setReferenceId(null);
+        movement.setCreatedBy(adminUser);
+        movement.setNote((reason != null && !reason.isBlank()) ? reason : ("Điều chỉnh tồn kho từ " + before + " thành " + newQuantity));
         inventoryMovementRepository.save(movement);
     }
 

@@ -1,5 +1,7 @@
 package sopvn.demo.order;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sopvn.demo.cart.PricingService;
@@ -8,6 +10,7 @@ import sopvn.demo.core.exception.CustomException;
 import sopvn.demo.core.service.NotificationService;
 import sopvn.demo.entity.*;
 import sopvn.demo.inventory.StockService;
+import sopvn.demo.repository.CoolCashTransactionRepository;
 import sopvn.demo.repository.OrderItemRepository;
 import sopvn.demo.repository.OrderRepository;
 import sopvn.demo.repository.ProductVariantRepository;
@@ -27,6 +30,8 @@ import java.util.UUID;
 @Service
 public class OrderService {
 
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final ProductVariantRepository productVariantRepository;
@@ -37,6 +42,7 @@ public class OrderService {
     private final CoolCashService coolCashService;
     private final NotificationService notificationService;
     private final UserRepository userRepository;
+    private final CoolCashTransactionRepository coolCashTransactionRepository;
 
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
@@ -47,7 +53,8 @@ public class OrderService {
                         StockService stockService,
                         CoolCashService coolCashService,
                         NotificationService notificationService,
-                        UserRepository userRepository) {
+                        UserRepository userRepository,
+                        CoolCashTransactionRepository coolCashTransactionRepository) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.productVariantRepository = productVariantRepository;
@@ -58,6 +65,7 @@ public class OrderService {
         this.coolCashService = coolCashService;
         this.notificationService = notificationService;
         this.userRepository = userRepository;
+        this.coolCashTransactionRepository = coolCashTransactionRepository;
     }
 
     private Promotion findPromotionWithLock(Long promoId) {
@@ -224,6 +232,93 @@ public class OrderService {
         return createOrder(user, recipientName, phone, email, address, null, null, note, paymentMethod, voucherCode, useCoolCash, cartItems);
     }
 
+    /**
+     * Bồi hoàn lập tức khi bước tạo VNPAY payment url thất bại sau khi đã tạo Order.
+     * Giải phóng tồn kho, voucher, và reserved CoolCash chính xác một lần.
+     */
+    @Transactional
+    public void compensateFailedVnpayCreation(Long orderId, String reason) {
+        Order order = orderRepository.findById(orderId).orElse(null);
+        if (order == null) return;
+
+        if ("PENDING".equalsIgnoreCase(order.getOrderStatus()) && "PAYMENT_PENDING".equalsIgnoreCase(order.getPaymentStatus())) {
+            log.warn("Đang bồi hoàn đơn hàng #{} do khởi tạo cổng thanh toán thất bại: {}", order.getOrderCode(), reason);
+            order.setOrderStatus("CANCELLED");
+            order.setPaymentStatus("PAYMENT_FAILED");
+            order.setCancelledAt(LocalDateTime.now());
+            order.setCancelledReason(reason != null ? reason : "Lỗi khởi tạo cổng thanh toán VNPAY");
+            order.setUpdatedAt(LocalDateTime.now());
+            orderRepository.save(order);
+
+            // 1. Release tồn kho đã giữ
+            stockService.releaseStock(order);
+
+            // 2. Release voucher
+            List<PromotionUsage> usages = promotionUsageRepository.findByOrderId(order.getId());
+            for (PromotionUsage u : usages) {
+                u.setStatus("RELEASED");
+                promotionUsageRepository.save(u);
+            }
+
+            // 3. Release CoolCash đã giữ
+            if (order.getUser() != null && order.getCoolcashUsed() != null && order.getCoolcashUsed().compareTo(BigDecimal.ZERO) > 0) {
+                coolCashService.releaseReservedCoolCash(order.getUser(), order, order.getCoolcashUsed(), "ORDER_COOLCASH_RELEASE:" + order.getId());
+            }
+        }
+    }
+
+    /**
+     * Quét và hủy tự động các đơn hàng VNPAY quá hạn thanh toán (PAYMENT_PENDING quá timeout).
+     */
+    @Transactional
+    public int cleanupExpiredPaymentPendingOrders(int timeoutMinutes) {
+        LocalDateTime threshold = LocalDateTime.now().minusMinutes(timeoutMinutes);
+        List<Order> expiredOrders = orderRepository.findExpiredVnpayOrders(threshold);
+        int cleanedCount = 0;
+
+        for (Order order : expiredOrders) {
+            try {
+                cancelExpiredOrder(order.getId(), "Hết thời hạn thanh toán VNPAY (" + timeoutMinutes + " phút)");
+                cleanedCount++;
+            } catch (Exception e) {
+                log.error("Lỗi khi hủy đơn hàng hết hạn #{}: {}", order.getOrderCode(), e.getMessage());
+            }
+        }
+        return cleanedCount;
+    }
+
+    @Transactional
+    public void cancelExpiredOrder(Long orderId, String reason) {
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .orElse(null);
+        if (order == null) return;
+
+        if (!"PENDING".equalsIgnoreCase(order.getOrderStatus()) || !"PAYMENT_PENDING".equalsIgnoreCase(order.getPaymentStatus())) {
+            return; // Đã thanh toán hoặc đã hủy trước đó
+        }
+
+        order.setOrderStatus("CANCELLED");
+        order.setPaymentStatus("PAYMENT_FAILED");
+        order.setCancelledAt(LocalDateTime.now());
+        order.setCancelledReason(reason);
+        order.setUpdatedAt(LocalDateTime.now());
+        orderRepository.save(order);
+
+        stockService.releaseStock(order);
+
+        List<PromotionUsage> usages = promotionUsageRepository.findByOrderId(order.getId());
+        for (PromotionUsage u : usages) {
+            u.setStatus("RELEASED");
+            promotionUsageRepository.save(u);
+        }
+
+        if (order.getUser() != null && order.getCoolcashUsed() != null && order.getCoolcashUsed().compareTo(BigDecimal.ZERO) > 0) {
+            coolCashService.releaseReservedCoolCash(order.getUser(), order, order.getCoolcashUsed(), "ORDER_COOLCASH_RELEASE:" + order.getId());
+        }
+
+        log.info("Đã hủy đơn hàng quá hạn thanh toán VNPAY #{}: {}", order.getOrderCode(), reason);
+    }
+
     @Transactional
     public void cancelOrder(Long orderId, User currentUser, String reason) {
         Order order = orderRepository.findById(orderId)
@@ -233,8 +328,10 @@ public class OrderService {
             return;
         }
 
-        if ("COMPLETED".equalsIgnoreCase(order.getOrderStatus()) || "SHIPPING".equalsIgnoreCase(order.getOrderStatus())) {
-            throw new CustomException("Không thể hủy đơn hàng đang giao hoặc đã hoàn tất.");
+        // P0-3: DELIVERED order must NOT be cancellable. Customer cancellation only for pre-shipping states.
+        String status = order.getOrderStatus() != null ? order.getOrderStatus().toUpperCase() : "PENDING";
+        if ("DELIVERED".equals(status) || "SHIPPING".equals(status) || "COMPLETED".equals(status)) {
+            throw new CustomException("Không thể hủy đơn hàng đang giao (SHIPPING), đã giao (DELIVERED) hoặc đã hoàn tất (COMPLETED). Vui lòng sử dụng quy trình Đổi / Trả hàng.");
         }
 
         if (currentUser != null && order.getUser() != null && !currentUser.getId().equals(order.getUser().getId())) {
@@ -251,6 +348,9 @@ public class OrderService {
         order.setCancelledReason(reason != null ? reason : "Người dùng hoặc quản trị viên hủy đơn");
         if (wasPaid) {
             order.setPaymentStatus("REFUND_PENDING");
+            order.setRefundStatus("REFUND_PENDING");
+            order.setRefundAmount(order.getFinalAmount());
+            order.setRefundNote("Hủy đơn hàng đã thanh toán. Chờ hoàn tiền cho khách.");
         } else {
             order.setPaymentStatus("CANCELLED");
         }
@@ -300,6 +400,70 @@ public class OrderService {
         notificationService.notifyOrderCancelled(order, reason);
     }
 
+    // =========================================================================
+    // VNPAY REFUND WORKFLOW FOR PAID ORDERS
+    // =========================================================================
+    @Transactional
+    public void startProcessingRefund(Long orderId, User adminUser) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomException("Không tìm thấy đơn hàng #" + orderId));
+
+        if (!"REFUND_PENDING".equalsIgnoreCase(order.getRefundStatus())) {
+            throw new CustomException("Chỉ đơn hàng ở trạng thái REFUND_PENDING mới có thể tiếp nhận xử lý hoàn tiền (Trạng thái hiện tại: " + order.getRefundStatus() + ").");
+        }
+
+        order.setRefundStatus("REFUND_PROCESSING");
+        order.setUpdatedAt(LocalDateTime.now());
+        orderRepository.save(order);
+    }
+
+    @Transactional
+    public void confirmRefundSuccess(Long orderId, String refundReference, String note, User adminUser) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomException("Không tìm thấy đơn hàng #" + orderId));
+
+        // Idempotency: Ngăn hoàn tiền 2 lần
+        if ("REFUNDED".equalsIgnoreCase(order.getRefundStatus())) {
+            return;
+        }
+
+        if (!"REFUND_PROCESSING".equalsIgnoreCase(order.getRefundStatus()) && !"REFUND_PENDING".equalsIgnoreCase(order.getRefundStatus())) {
+            throw new CustomException("Đơn hàng không ở trạng thái chờ hoàn tiền hợp lệ (Trạng thái: " + order.getRefundStatus() + ").");
+        }
+
+        if (refundReference == null || refundReference.isBlank()) {
+            throw new CustomException("Mã tham chiếu giao dịch hoàn tiền không được để trống.");
+        }
+
+        order.setRefundStatus("REFUNDED");
+        order.setPaymentStatus("REFUNDED");
+        order.setRefundReference(refundReference.trim());
+        order.setRefundProcessedAt(LocalDateTime.now());
+        if (note != null && !note.isBlank()) {
+            order.setRefundNote(note.trim());
+        }
+        order.setUpdatedAt(LocalDateTime.now());
+        orderRepository.save(order);
+    }
+
+    @Transactional
+    public void markRefundFailed(Long orderId, String failureReason, User adminUser) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomException("Không tìm thấy đơn hàng #" + orderId));
+
+        if ("REFUNDED".equalsIgnoreCase(order.getRefundStatus())) {
+            throw new CustomException("Đơn hàng đã được hoàn tiền thành công trước đó, không thể đánh dấu thất bại.");
+        }
+
+        order.setRefundStatus("REFUND_FAILED");
+        order.setRefundNote(failureReason != null ? failureReason.trim() : "Hoàn tiền thất bại");
+        order.setUpdatedAt(LocalDateTime.now());
+        orderRepository.save(order);
+    }
+
+    // =========================================================================
+    // COMPLETE ORDER STATE GUARD
+    // =========================================================================
     @Transactional
     public void completeOrder(Long orderId) {
         Order order = orderRepository.findById(orderId)
@@ -309,12 +473,18 @@ public class OrderService {
             return;
         }
 
-        // P0-1: Không được cho VNPAY order chưa thanh toán đi đến COMPLETED
+        // P0-5: completeOrder() itself must require DELIVERED
+        if (!"DELIVERED".equalsIgnoreCase(order.getOrderStatus())) {
+            throw new CustomException("Chỉ đơn hàng ở trạng thái DELIVERED (đã giao thành công) mới có thể hoàn tất (Trạng thái hiện tại: " + order.getOrderStatus() + ").");
+        }
+
+        // P0-1: VNPAY must be PAID
         if ("VNPAY".equalsIgnoreCase(order.getPaymentMethod())) {
             if (!"PAID".equalsIgnoreCase(order.getPaymentStatus())) {
                 throw new CustomException("Không thể hoàn tất đơn hàng VNPAY khi chưa thanh toán thành công (Payment Status: " + order.getPaymentStatus() + ").");
             }
         } else if ("COD".equalsIgnoreCase(order.getPaymentMethod())) {
+            // COD trở thành PAID khi giao hàng thành công và hoàn tất
             order.setPaymentStatus("PAID");
         }
 
@@ -324,35 +494,38 @@ public class OrderService {
         }
         order.setUpdatedAt(LocalDateTime.now());
 
-        // Trao thưởng CoolCash theo hạng thành viên CHỈ KHI đơn hàng PAID
+        // Trao thưởng CoolCash theo hạng thành viên CHỈ KHI đơn hàng PAID và CHƯA TỪNG ĐƯỢC TRAO THƯỞNG
         User user = order.getUser();
         if (user != null) {
-            String tier = user.getMembershipTier() != null ? user.getMembershipTier().toUpperCase() : "NEW";
-            int cashBackRate = 3;
-            if ("PLATINUM".equals(tier)) cashBackRate = 10;
-            else if ("GOLD".equals(tier)) cashBackRate = 7;
-            else if ("SILVER".equals(tier)) cashBackRate = 5;
+            String cashbackKey = "ORDER_CASHBACK:" + order.getId();
+            if (!coolCashTransactionRepository.existsByIdempotencyKey(cashbackKey)) {
+                String tier = user.getMembershipTier() != null ? user.getMembershipTier().toUpperCase() : "NEW";
+                int cashBackRate = 3;
+                if ("PLATINUM".equals(tier)) cashBackRate = 10;
+                else if ("GOLD".equals(tier)) cashBackRate = 7;
+                else if ("SILVER".equals(tier)) cashBackRate = 5;
 
-            BigDecimal finalAmount = order.getFinalAmount() != null ? order.getFinalAmount() : BigDecimal.ZERO;
-            BigDecimal coolcashEarned = finalAmount.multiply(BigDecimal.valueOf(cashBackRate))
-                    .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
-            order.setCoolcashEarned(coolcashEarned);
+                BigDecimal finalAmount = order.getFinalAmount() != null ? order.getFinalAmount() : BigDecimal.ZERO;
+                BigDecimal coolcashEarned = finalAmount.multiply(BigDecimal.valueOf(cashBackRate))
+                        .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP);
+                order.setCoolcashEarned(coolcashEarned);
 
-            coolCashService.rewardOrderCashback(user, order, coolcashEarned, cashBackRate);
+                coolCashService.rewardOrderCashback(user, order, coolcashEarned, cashBackRate);
 
-            // Cập nhật tổng chi tiêu và thăng hạng
-            BigDecimal currentSpent = user.getTotalSpent() != null ? user.getTotalSpent() : BigDecimal.ZERO;
-            BigDecimal newSpent = currentSpent.add(finalAmount);
-            user.setTotalSpent(newSpent);
+                // Cập nhật tổng chi tiêu và thăng hạng chính xác 1 lần
+                BigDecimal currentSpent = user.getTotalSpent() != null ? user.getTotalSpent() : BigDecimal.ZERO;
+                BigDecimal newSpent = currentSpent.add(finalAmount);
+                user.setTotalSpent(newSpent);
 
-            if (newSpent.compareTo(BigDecimal.valueOf(6000000)) >= 0) {
-                user.setMembershipTier("PLATINUM");
-            } else if (newSpent.compareTo(BigDecimal.valueOf(3000000)) >= 0) {
-                user.setMembershipTier("GOLD");
-            } else if (newSpent.compareTo(BigDecimal.valueOf(1000000)) >= 0) {
-                user.setMembershipTier("SILVER");
+                if (newSpent.compareTo(BigDecimal.valueOf(6000000)) >= 0) {
+                    user.setMembershipTier("PLATINUM");
+                } else if (newSpent.compareTo(BigDecimal.valueOf(3000000)) >= 0) {
+                    user.setMembershipTier("GOLD");
+                } else if (newSpent.compareTo(BigDecimal.valueOf(1000000)) >= 0) {
+                    user.setMembershipTier("SILVER");
+                }
+                userRepository.save(user);
             }
-            userRepository.save(user);
         }
 
         orderRepository.save(order);

@@ -251,9 +251,15 @@ public class PaymentController {
                     finalShippingAddress, finalProvince, finalDistrict, note, paymentMethod, voucherCode, useCoolCash, cart.getItems());
 
             if ("VNPAY".equalsIgnoreCase(paymentMethod)) {
-                String clientIp = vnpayService.getClientIp(request);
-                String paymentUrl = vnpayService.createPaymentUrl(order, clientIp);
-                return "redirect:" + paymentUrl;
+                try {
+                    String clientIp = vnpayService.getClientIp(request);
+                    String paymentUrl = vnpayService.createPaymentUrl(order, clientIp);
+                    return "redirect:" + paymentUrl;
+                } catch (Exception ex) {
+                    orderService.compensateFailedVnpayCreation(order.getId(), "Khởi tạo URL thanh toán VNPAY thất bại: " + ex.getMessage());
+                    redirectAttributes.addFlashAttribute("errorMessage", "Không thể khởi tạo liên kết thanh toán VNPAY: " + ex.getMessage() + ". Đơn hàng đã được bồi hoàn tự động.");
+                    return "redirect:/thanh-toan/checkout";
+                }
             } else {
                 // COD: xóa giỏ hàng ngay khi đặt thành công
                 cartService.clearCart(user, guestToken);

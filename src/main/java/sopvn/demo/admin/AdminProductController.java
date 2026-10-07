@@ -7,6 +7,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import sopvn.demo.core.exception.CustomException;
 import sopvn.demo.core.util.SlugUtils;
 import sopvn.demo.entity.*;
+import sopvn.demo.inventory.StockService;
+import java.security.Principal;
 import sopvn.demo.repository.*;
 
 import java.math.BigDecimal;
@@ -24,6 +26,8 @@ public class AdminProductController {
     private final CollectionRepository collectionRepository;
     private final ColorRepository colorRepository;
     private final SizeRepository sizeRepository;
+    private final StockService stockService;
+    private final UserRepository userRepository;
 
     public AdminProductController(ProductRepository productRepository,
                                   ProductVariantRepository productVariantRepository,
@@ -31,7 +35,9 @@ public class AdminProductController {
                                   CategoryRepository categoryRepository,
                                   CollectionRepository collectionRepository,
                                   ColorRepository colorRepository,
-                                  SizeRepository sizeRepository) {
+                                  SizeRepository sizeRepository,
+                                  StockService stockService,
+                                  UserRepository userRepository) {
         this.productRepository = productRepository;
         this.productVariantRepository = productVariantRepository;
         this.productImageRepository = productImageRepository;
@@ -39,6 +45,8 @@ public class AdminProductController {
         this.collectionRepository = collectionRepository;
         this.colorRepository = colorRepository;
         this.sizeRepository = sizeRepository;
+        this.stockService = stockService;
+        this.userRepository = userRepository;
     }
 
     @GetMapping
@@ -106,8 +114,10 @@ public class AdminProductController {
                               @RequestParam(value = "sku", required = false) String sku,
                               @RequestParam(value = "salePrice", required = false) BigDecimal salePrice,
                               @RequestParam(value = "stockQuantity", required = false) Integer stockQuantity,
+                              Principal principal,
                               RedirectAttributes redirectAttributes) {
         try {
+            User currentUser = principal != null ? userRepository.findByEmail(principal.getName()).orElse(null) : null;
             if (name == null || name.isBlank()) {
                 throw new CustomException("Tên sản phẩm không được để trống.");
             }
@@ -157,8 +167,11 @@ public class AdminProductController {
                     if (productVariantRepository.existsBySku(finalSku)) {
                         throw new CustomException("Mã SKU '" + finalSku + "' đã tồn tại trong hệ thống!");
                     }
-                    ProductVariant v = new ProductVariant(savedProduct, c, s, finalSku, basePrice, (salePrice != null ? salePrice : basePrice), (stockQuantity != null ? stockQuantity : 0), 250, true);
-                    productVariantRepository.save(v);
+                    ProductVariant v = new ProductVariant(savedProduct, c, s, finalSku, basePrice, (salePrice != null ? salePrice : basePrice), 0, 250, true);
+                    v = productVariantRepository.save(v);
+                    if (stockQuantity != null && stockQuantity > 0) {
+                        stockService.adjustStockAudited(v, stockQuantity, "Tồn kho ban đầu khi tạo sản phẩm " + savedProduct.getName(), currentUser);
+                    }
                 }
             }
 
@@ -201,8 +214,10 @@ public class AdminProductController {
                                 @RequestParam(value = "description", required = false) String description,
                                 @RequestParam(value = "features", required = false) String features,
                                 @RequestParam(value = "status", defaultValue = "ACTIVE") String status,
-                                RedirectAttributes redirectAttributes) {
+                                Principal principal,
+                              RedirectAttributes redirectAttributes) {
         try {
+            User currentUser = principal != null ? userRepository.findByEmail(principal.getName()).orElse(null) : null;
             Product p = productRepository.findById(id)
                     .orElseThrow(() -> new CustomException("Không tìm thấy sản phẩm ID: " + id));
 
@@ -246,8 +261,10 @@ public class AdminProductController {
     }
 
     @PostMapping("/{id}/xoa")
-    public String deleteProduct(@PathVariable("id") Long id, RedirectAttributes redirectAttributes) {
+    public String deleteProduct(@PathVariable("id") Long id, Principal principal,
+                              RedirectAttributes redirectAttributes) {
         try {
+            User currentUser = principal != null ? userRepository.findByEmail(principal.getName()).orElse(null) : null;
             Product p = productRepository.findById(id).orElse(null);
             if (p != null) {
                 p.setStatus("INACTIVE");
@@ -268,8 +285,10 @@ public class AdminProductController {
                              @RequestParam("originalPrice") BigDecimal originalPrice,
                              @RequestParam("salePrice") BigDecimal salePrice,
                              @RequestParam(value = "stockQuantity", defaultValue = "0") Integer stockQuantity,
-                             RedirectAttributes redirectAttributes) {
+                             Principal principal,
+                              RedirectAttributes redirectAttributes) {
         try {
+            User currentUser = principal != null ? userRepository.findByEmail(principal.getName()).orElse(null) : null;
             Product product = productRepository.findById(id)
                     .orElseThrow(() -> new CustomException("Sản phẩm không tồn tại: " + id));
 
@@ -295,10 +314,13 @@ public class AdminProductController {
             variant.setSku(finalSku);
             variant.setOriginalPrice(originalPrice != null ? originalPrice : product.getBasePrice());
             variant.setSalePrice(salePrice != null ? salePrice : product.getBasePrice());
-            variant.setStockQuantity(stockQuantity != null ? stockQuantity : 0);
+            variant.setStockQuantity(0);
             variant.setIsActive(true);
+            variant = productVariantRepository.save(variant);
 
-            productVariantRepository.save(variant);
+            if (stockQuantity != null && stockQuantity > 0) {
+                stockService.adjustStockAudited(variant, stockQuantity, "Tồn kho ban đầu cho biến thể SKU " + finalSku, currentUser);
+            }
             redirectAttributes.addFlashAttribute("successMessage", "Đã thêm biến thể SKU: " + finalSku);
         } catch (CustomException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
@@ -312,8 +334,10 @@ public class AdminProductController {
     @PostMapping("/{id}/bien-the/{variantId}/xoa")
     public String deleteVariant(@PathVariable("id") Long id,
                                 @PathVariable("variantId") Long variantId,
-                                RedirectAttributes redirectAttributes) {
+                                Principal principal,
+                              RedirectAttributes redirectAttributes) {
         try {
+            User currentUser = principal != null ? userRepository.findByEmail(principal.getName()).orElse(null) : null;
             productVariantRepository.findById(variantId).ifPresent(v -> {
                 v.setIsActive(false);
                 productVariantRepository.save(v);
@@ -330,8 +354,10 @@ public class AdminProductController {
                            @RequestParam("imageUrl") String imageUrl,
                            @RequestParam(value = "colorId", required = false) Integer colorId,
                            @RequestParam(value = "isThumbnail", defaultValue = "false") boolean isThumbnail,
-                           RedirectAttributes redirectAttributes) {
+                           Principal principal,
+                              RedirectAttributes redirectAttributes) {
         try {
+            User currentUser = principal != null ? userRepository.findByEmail(principal.getName()).orElse(null) : null;
             Product product = productRepository.findById(id)
                     .orElseThrow(() -> new CustomException("Sản phẩm không tồn tại: " + id));
 
@@ -359,8 +385,10 @@ public class AdminProductController {
     @PostMapping("/{id}/anh/{imageId}/xoa")
     public String deleteImage(@PathVariable("id") Long id,
                               @PathVariable("imageId") Long imageId,
+                              Principal principal,
                               RedirectAttributes redirectAttributes) {
         try {
+            User currentUser = principal != null ? userRepository.findByEmail(principal.getName()).orElse(null) : null;
             productImageRepository.deleteById(imageId);
             redirectAttributes.addFlashAttribute("successMessage", "Đã xóa ảnh sản phẩm.");
         } catch (Exception ex) {

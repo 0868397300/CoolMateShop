@@ -34,7 +34,7 @@ public class NotificationService {
                 mailSender.send(msg);
                 log.info("[EMAIL SENT] Đến: {}, Tiêu đề: {}", to, subject);
             } else {
-                log.info("[EMAIL SIMULATION - SMTP not configured] Đến: {}, Tiêu đề: {}, Nội dung: {}", to, subject, content);
+                log.info("[EMAIL SIMULATION - SMTP not configured] Đến: {}, Tiêu đề: {}", to, subject);
             }
         } catch (Exception e) {
             log.warn("[EMAIL FAILED] Không thể gửi email tới {}: {}", to, e.getMessage());
@@ -117,9 +117,19 @@ public class NotificationService {
 
     public void notifyPasswordReset(User user, String resetUrl) {
         if (user == null) return;
-        log.info("[NOTIFICATION] Gửi email đặt lại mật khẩu: Email={}, Link={}",
-                user.getEmail(), resetUrl);
+        // P0-16: Never log password reset tokens or complete reset URLs
+        log.info("[NOTIFICATION] Gửi email đặt lại mật khẩu cho tài khoản: Email={}", user.getEmail());
         sendEmailQuietly(user.getEmail(), "Coolmate - Yêu cầu đặt lại mật khẩu",
                 "Chào " + user.getFullName() + ",\nVui lòng nhấn vào liên kết sau để đặt lại mật khẩu (hiệu lực 15 phút):\n" + resetUrl);
+    }
+
+    public void notifyOrderRefunded(Order order) {
+        if (order == null) return;
+        log.info("[NOTIFICATION] Hoàn tiền đơn hàng thành công: Mã đơn={}, Mã giao dịch hoàn={}, Số tiền={}đ",
+                order.getOrderCode(), order.getRefundReference(), order.getRefundAmount());
+        if (order.getRecipientEmail() != null) {
+            sendEmailQuietly(order.getRecipientEmail(), "Coolmate - Thông báo hoàn tiền đơn hàng #" + order.getOrderCode(),
+                    "Khoản tiền " + order.getRefundAmount() + "đ cho đơn hàng #" + order.getOrderCode() + " đã được hoàn tất xử lý qua " + order.getPaymentMethod() + ".");
+        }
     }
 }

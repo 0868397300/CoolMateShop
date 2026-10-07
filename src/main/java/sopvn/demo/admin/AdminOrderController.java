@@ -115,4 +115,38 @@ public class AdminOrderController {
         model.addAttribute("order", order);
         return "admin/order-print";
     }
+
+    @PostMapping("/{orderId}/refund-action")
+    public String handleRefundAction(@PathVariable("orderId") Long orderId,
+                                     @RequestParam("action") String action,
+                                     @RequestParam(value = "refundReference", required = false) String refundReference,
+                                     @RequestParam(value = "note", required = false) String note,
+                                     Principal principal,
+                                     RedirectAttributes redirectAttributes) {
+        try {
+            User admin = null;
+            if (principal != null) {
+                admin = userRepository.findByEmail(principal.getName()).orElse(null);
+            }
+
+            if ("START_PROCESSING".equalsIgnoreCase(action)) {
+                orderService.startProcessingRefund(orderId, admin);
+                redirectAttributes.addFlashAttribute("successMessage", "Đã chuyển đơn hàng #" + orderId + " sang trạng thái đang hoàn tiền (REFUND_PROCESSING).");
+            } else if ("CONFIRM_SUCCESS".equalsIgnoreCase(action)) {
+                orderService.confirmRefundSuccess(orderId, refundReference, note, admin);
+                redirectAttributes.addFlashAttribute("successMessage", "Đã xác nhận hoàn tiền thành công đơn hàng #" + orderId + " (Mã tham chiếu: " + refundReference + ").");
+            } else if ("MARK_FAILED".equalsIgnoreCase(action)) {
+                orderService.markRefundFailed(orderId, note, admin);
+                redirectAttributes.addFlashAttribute("errorMessage", "Đã đánh dấu hoàn tiền thất bại cho đơn hàng #" + orderId + ".");
+            } else {
+                throw new CustomException("Hành động hoàn tiền không hợp lệ: " + action);
+            }
+        } catch (CustomException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
+        } catch (Exception ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Lỗi xử lý hoàn tiền: " + ex.getMessage());
+        }
+        return "redirect:/admin/don-hang";
+    }
+
 }

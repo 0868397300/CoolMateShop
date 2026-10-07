@@ -199,9 +199,10 @@ public class SecurityConfig {
                     "/css/**", "/js/**", "/images/**", "/webjars/**", "/favicon.ico"
                 ).permitAll()
 
-                // Phân quyền ADMIN ONLY: Báo cáo tài chính, quản lý khách hàng & ví, khuyến mãi, duyệt nhập kho
+                // Phân quyền ADMIN ONLY: Báo cáo tài chính, quản lý sản phẩm, danh mục, khách hàng & ví, khuyến mãi, duyệt nhập kho
                 .requestMatchers(
                     "/admin/dashboard/**",
+                    "/admin/san-pham/**",
                     "/admin/khach-hang/**",
                     "/admin/khuyen-mai/**",
                     "/admin/danh-muc/**",
@@ -213,7 +214,6 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/admin",
                     "/admin/don-hang/**",
-                    "/admin/san-pham/**",
                     "/admin/nhap-kho/**",
                     "/admin/doi-tra/**",
                     "/admin/danh-gia/**"

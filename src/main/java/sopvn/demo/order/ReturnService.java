@@ -83,17 +83,11 @@ public class ReturnService {
             throw new CustomException("Vui lòng chọn sản phẩm cần đổi hoặc trả trong đơn hàng.");
         }
 
-        OrderItem targetItem = null;
-        if (order.getItems() != null) {
-            for (OrderItem oi : order.getItems()) {
-                if (oi.getId().equals(orderItemId)) {
-                    targetItem = oi;
-                    break;
-                }
-            }
-        }
+        // P0-6: DB row locking trên OrderItem để chống 2 request đổi trả đồng thời vượt quá số lượng đã mua
+        OrderItem targetItem = orderItemRepository.findByIdForUpdate(orderItemId)
+                .orElseThrow(() -> new CustomException("Sản phẩm đổi trả không tồn tại: " + orderItemId));
 
-        if (targetItem == null) {
+        if (targetItem.getOrder() == null || !targetItem.getOrder().getId().equals(order.getId())) {
             throw new CustomException("Sản phẩm được chọn không thuộc đơn hàng #" + order.getOrderCode());
         }
 
@@ -101,7 +95,7 @@ public class ReturnService {
             throw new CustomException("Số lượng đổi trả phải lớn hơn 0.");
         }
 
-        // Partial return check: chỉ tính các return đang active (không tính REJECTED)
+        // Partial return check: chỉ tính các return đang active (loại trừ REJECTED)
         List<OrderReturn> prevReturns = orderReturnRepository.findByOrderItemId(orderItemId);
         int alreadyReturned = 0;
         for (OrderReturn r : prevReturns) {
@@ -115,6 +109,19 @@ public class ReturnService {
             throw new CustomException("Số lượng yêu cầu đổi trả (" + quantity + ") vượt quá số lượng sản phẩm còn lại có thể đổi trả (" + remainingQty + ").");
         }
 
+        BigDecimal subtotal = order.getSubtotalAmount() != null && order.getSubtotalAmount().compareTo(BigDecimal.ZERO) > 0 
+                ? order.getSubtotalAmount() : BigDecimal.ONE;
+
+        BigDecimal totalDiscounts = (order.getVoucherDiscountAmount() != null ? order.getVoucherDiscountAmount() : BigDecimal.ZERO)
+                .add(order.getComboDiscountAmount() != null ? order.getComboDiscountAmount() : BigDecimal.ZERO);
+
+        BigDecimal itemTotalPrice = targetItem.getUnitPrice().multiply(BigDecimal.valueOf(quantity));
+        BigDecimal itemRatio = itemTotalPrice.divide(subtotal, 4, RoundingMode.HALF_UP);
+        BigDecimal itemAllocatedDiscount = totalDiscounts.multiply(itemRatio).setScale(0, RoundingMode.HALF_UP);
+
+        BigDecimal effectiveItemValue = itemTotalPrice.subtract(itemAllocatedDiscount);
+        if (effectiveItemValue.compareTo(BigDecimal.ZERO) < 0) effectiveItemValue = BigDecimal.ZERO;
+
         ProductVariant targetVariant = null;
         BigDecimal refundAmount = BigDecimal.ZERO;
 
@@ -123,7 +130,7 @@ public class ReturnService {
                 throw new CustomException("Vui lòng chọn biến thể (Màu / Size) muốn đổi sang.");
             }
             targetVariant = productVariantRepository.findById(targetVariantId)
-                    .orElseThrow(() -> new CustomException("Biến thể muốn đổi không tồn tại."));
+                    .orElseThrow(() -> new CustomException("Biến thể muốn đổi không tồn tại: " + targetVariantId));
 
             if (!Boolean.TRUE.equals(targetVariant.getIsActive())) {
                 throw new CustomException("Biến thể muốn đổi hiện đang tạm ngưng kinh doanh.");
@@ -140,29 +147,23 @@ public class ReturnService {
                 throw new CustomException("Biến thể muốn đổi trong kho chỉ còn " + targetVariant.getStockQuantity() + " chiếc, không đủ số lượng " + quantity + ".");
             }
 
-            // Xử lý chênh lệch giá nếu có giữa biến thể cũ và biến thể mới
-            BigDecimal origPrice = targetItem.getUnitPrice() != null ? targetItem.getUnitPrice() : BigDecimal.ZERO;
-            BigDecimal newPrice = targetVariant.getSalePrice() != null ? targetVariant.getSalePrice() : origPrice;
-            if (origPrice.compareTo(newPrice) > 0) {
-                // Biến thể mới rẻ hơn: Hoàn lại khoản chênh lệch cho khách
-                refundAmount = origPrice.subtract(newPrice).multiply(BigDecimal.valueOf(quantity));
+            // P0-4: Xử lý chênh lệch giá biến thể đổi
+            BigDecimal origUnitPrice = targetItem.getUnitPrice() != null ? targetItem.getUnitPrice() : BigDecimal.ZERO;
+            BigDecimal newUnitPrice = targetVariant.getSalePrice() != null ? targetVariant.getSalePrice() : origUnitPrice;
+
+            if (newUnitPrice.compareTo(origUnitPrice) > 0) {
+                // Không hỗ trợ nâng cấp miễn phí
+                throw new CustomException("Biến thể đổi '" + targetVariant.getSku() + "' có giá (" + newUnitPrice + "đ) cao hơn giá sản phẩm ban đầu (" + origUnitPrice + "đ). Hệ thống không hỗ trợ nâng cấp sản phẩm miễn phí. Vui lòng chọn biến thể ngang giá hoặc chọn Trả hàng - Hoàn tiền để đặt đơn hàng mới.");
+            } else if (newUnitPrice.compareTo(origUnitPrice) < 0) {
+                // Biến thể mới rẻ hơn: Tính khoản chênh lệch hoàn lại cho khách
+                BigDecimal priceDifference = origUnitPrice.subtract(newUnitPrice).multiply(BigDecimal.valueOf(quantity));
+                refundAmount = priceDifference.min(effectiveItemValue);
             } else {
                 refundAmount = BigDecimal.ZERO;
             }
         } else {
             // Hoàn tiền sản phẩm (Return & Refund)
-            BigDecimal subtotal = order.getSubtotalAmount() != null && order.getSubtotalAmount().compareTo(BigDecimal.ZERO) > 0 
-                    ? order.getSubtotalAmount() : BigDecimal.ONE;
-
-            BigDecimal totalDiscounts = (order.getVoucherDiscountAmount() != null ? order.getVoucherDiscountAmount() : BigDecimal.ZERO)
-                    .add(order.getComboDiscountAmount() != null ? order.getComboDiscountAmount() : BigDecimal.ZERO);
-
-            BigDecimal itemTotalPrice = targetItem.getUnitPrice().multiply(BigDecimal.valueOf(quantity));
-            BigDecimal itemRatio = itemTotalPrice.divide(subtotal, 4, RoundingMode.HALF_UP);
-            BigDecimal itemAllocatedDiscount = totalDiscounts.multiply(itemRatio).setScale(0, RoundingMode.HALF_UP);
-
-            refundAmount = itemTotalPrice.subtract(itemAllocatedDiscount);
-            if (refundAmount.compareTo(BigDecimal.ZERO) < 0) refundAmount = BigDecimal.ZERO;
+            refundAmount = effectiveItemValue;
         }
 
         OrderReturn req = new OrderReturn();
@@ -260,7 +261,7 @@ public class ReturnService {
             }
         }
 
-        // 4. Thu hồi cashback đã trao thưởng trước đó và giảm tổng chi tiêu nếu có
+        // 4. Thu hồi cashback đã trao thưởng trước đó và giảm tổng chi tiêu nếu có (Idempotent theo returnId)
         Order order = req.getOrder();
         if (order != null && order.getCoolcashEarned() != null && order.getCoolcashEarned().compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal orderFinal = order.getFinalAmount() != null && order.getFinalAmount().compareTo(BigDecimal.ZERO) > 0 ? order.getFinalAmount() : BigDecimal.ONE;

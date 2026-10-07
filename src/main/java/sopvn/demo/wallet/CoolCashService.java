@@ -1,5 +1,7 @@
 package sopvn.demo.wallet;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sopvn.demo.core.exception.CustomException;
@@ -16,6 +18,8 @@ import java.util.Optional;
 
 @Service
 public class CoolCashService {
+
+    private static final Logger log = LoggerFactory.getLogger(CoolCashService.class);
 
     private final UserRepository userRepository;
     private final CoolCashTransactionRepository coolCashTransactionRepository;
@@ -141,18 +145,24 @@ public class CoolCashService {
 
         String reserveKey = "ORDER_COOLCASH_RESERVE:" + order.getId();
         Optional<CoolCashTransaction> reserveOpt = coolCashTransactionRepository.findByIdempotencyKey(reserveKey);
-        if (reserveOpt.isPresent()) {
-            CoolCashTransaction tx = reserveOpt.get();
-            if (!"COMPLETED".equalsIgnoreCase(tx.getStatus())) {
-                tx.setStatus("COMPLETED");
-                tx.setDescription("Thanh toán thành công đơn hàng #" + order.getOrderCode() + " [" + idempotencyKey + "]");
-                coolCashTransactionRepository.save(tx);
-            }
-            return;
+        
+        // P0-7: Bắt buộc phải có giao dịch tạm giữ hợp lệ trước đó, không được âm thầm fallback sang direct spend
+        if (reserveOpt.isEmpty()) {
+            throw new CustomException("Không tìm thấy giao dịch tạm giữ CoolCash hợp lệ (RESERVED) để hoàn tất cho đơn hàng #" + order.getOrderCode());
         }
 
-        // Nếu chưa reserve thì trừ trực tiếp
-        spendCoolCash(user, order, amount, idempotencyKey);
+        CoolCashTransaction tx = reserveOpt.get();
+        if ("COMPLETED".equalsIgnoreCase(tx.getStatus())) {
+            return; // Idempotent
+        }
+
+        if (!"RESERVED".equalsIgnoreCase(tx.getStatus())) {
+            throw new CustomException("Giao dịch CoolCash đơn #" + order.getOrderCode() + " không ở trạng thái tạm giữ hợp lệ (Hiện tại: " + tx.getStatus() + ")");
+        }
+
+        tx.setStatus("COMPLETED");
+        tx.setDescription("Thanh toán thành công đơn hàng #" + order.getOrderCode() + " [" + idempotencyKey + "]");
+        coolCashTransactionRepository.save(tx);
     }
 
     @Transactional
@@ -167,13 +177,27 @@ public class CoolCashService {
 
         String reserveKey = "ORDER_COOLCASH_RESERVE:" + order.getId();
         Optional<CoolCashTransaction> reserveOpt = coolCashTransactionRepository.findByIdempotencyKey(reserveKey);
-        if (reserveOpt.isPresent()) {
-            CoolCashTransaction tx = reserveOpt.get();
-            tx.setStatus("RELEASED");
-            coolCashTransactionRepository.save(tx);
+        
+        // P0-7: release phải kiểm tra có matching reservation. Tuyệt đối không tự sinh ra tiền khi không có reservation khớp.
+        if (reserveOpt.isEmpty()) {
+            log.warn("Không tìm thấy giao dịch tạm giữ CoolCash cho đơn hàng #{}, từ chối giải phóng để ngăn tạo tiền khống.", order.getOrderCode());
+            return;
         }
 
-        // Hoàn lại tiền vào số dư cho user
+        CoolCashTransaction reserveTx = reserveOpt.get();
+        if ("RELEASED".equalsIgnoreCase(reserveTx.getStatus())) {
+            return; // Idempotent
+        }
+
+        if (!"RESERVED".equalsIgnoreCase(reserveTx.getStatus())) {
+            log.warn("Giao dịch CoolCash cho đơn hàng #{} không ở trạng thái RESERVED (Hiện tại: {}), từ chối giải phóng.", order.getOrderCode(), reserveTx.getStatus());
+            return;
+        }
+
+        reserveTx.setStatus("RELEASED");
+        coolCashTransactionRepository.save(reserveTx);
+
+        // Hoàn lại tiền vào số dư cho user dưới pessimistic write lock
         User lockedUser = findUserWithLock(user.getId(), user);
         BigDecimal current = lockedUser.getCoolcashBalance() != null ? lockedUser.getCoolcashBalance() : BigDecimal.ZERO;
         BigDecimal newBal = current.add(amount);
