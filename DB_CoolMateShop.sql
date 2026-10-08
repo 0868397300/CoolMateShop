@@ -1428,7 +1428,7 @@ PRINT '=========================================================';
 PRINT 'MIGRATION COMPLETED SUCCESSFULLY FOR COOLMATE D2C ENGINE';
 PRINT '=========================================================';
 
--- Unique index for CoolCash idempotency
+-- Unique filtered indexes for idempotency & concurrency
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_CoolCash_IdempotencyKey' AND object_id = OBJECT_ID(N'[dbo].[CoolCash_Transactions]'))
 BEGIN
     CREATE UNIQUE NONCLUSTERED INDEX [UQ_CoolCash_IdempotencyKey] ON [dbo].[CoolCash_Transactions]([idempotency_key]) 
@@ -1437,59 +1437,128 @@ BEGIN
 END
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_PromotionUsage_Order_Promo' AND object_id = OBJECT_ID(N'[dbo].[Promotion_Usages]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [UQ_PromotionUsage_Order_Promo]
+    ON [dbo].[Promotion_Usages]([order_id], [promotion_id])
+    WHERE [order_id] IS NOT NULL;
+    PRINT 'Created unique index UQ_PromotionUsage_Order_Promo';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_InvMovements_BusinessKey' AND object_id = OBJECT_ID(N'[dbo].[Inventory_Movements]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [UQ_InvMovements_BusinessKey]
+    ON [dbo].[Inventory_Movements] ([reference_type], [reference_id], [variant_id], [movement_type])
+    WHERE [reference_type] IS NOT NULL AND [reference_id] IS NOT NULL;
+    PRINT 'Created unique index UQ_InvMovements_BusinessKey';
+END
+GO
+
 
 -- -------------------------------------------------------------
 -- CHECK CONSTRAINTS FOR DATA INTEGRITY
 -- -------------------------------------------------------------
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Users_CoolcashBalance')
+BEGIN
     ALTER TABLE [dbo].[Users] ADD CONSTRAINT [CK_Users_CoolcashBalance] CHECK ([coolcash_balance] >= 0);
+END
+GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Users_TotalSpent')
+BEGIN
     ALTER TABLE [dbo].[Users] ADD CONSTRAINT [CK_Users_TotalSpent] CHECK ([total_spent] >= 0);
-
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Orders_RefundAmount')
-    ALTER TABLE [dbo].[Orders] ADD CONSTRAINT [CK_Orders_RefundAmount] CHECK ([refund_amount] IS NULL OR [refund_amount] >= 0);
-
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_ProductVariants_Stock')
-    ALTER TABLE [dbo].[Product_Variants] ADD CONSTRAINT [CK_ProductVariants_Stock] CHECK ([stock_quantity] >= 0);
-
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_ProductVariants_SalePrice')
-    ALTER TABLE [dbo].[Product_Variants] ADD CONSTRAINT [CK_ProductVariants_SalePrice] CHECK ([sale_price] >= 0);
-
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_ProductVariants_ImportPrice')
-    ALTER TABLE [dbo].[Product_Variants] ADD CONSTRAINT [CK_ProductVariants_ImportPrice] CHECK ([import_price] >= 0);
-
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Products_BasePrice')
-    ALTER TABLE [dbo].[Products] ADD CONSTRAINT [CK_Products_BasePrice] CHECK ([base_price] >= 0);
-
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Products_RatingAvg')
-    ALTER TABLE [dbo].[Products] ADD CONSTRAINT [CK_Products_RatingAvg] CHECK ([rating_avg] >= 0.0 AND [rating_avg] <= 5.0);
-
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Reviews_Rating')
-    ALTER TABLE [dbo].[Reviews] ADD CONSTRAINT [CK_Reviews_Rating] CHECK ([rating] >= 1 AND [rating] <= 5);
-
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_CartItems_Quantity')
-    ALTER TABLE [dbo].[Cart_Items] ADD CONSTRAINT [CK_CartItems_Quantity] CHECK ([quantity] > 0);
-
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_OrderItems_Quantity')
-    ALTER TABLE [dbo].[Order_Items] ADD CONSTRAINT [CK_OrderItems_Quantity] CHECK ([quantity] > 0);
-
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_OrderReturns_Quantity')
-    ALTER TABLE [dbo].[Order_Returns] ADD CONSTRAINT [CK_OrderReturns_Quantity] CHECK ([quantity] > 0);
-
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_OrderReturns_RefundAmount')
-    ALTER TABLE [dbo].[Order_Returns] ADD CONSTRAINT [CK_OrderReturns_RefundAmount] CHECK ([refund_amount] >= 0);
-
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_InventoryReceiptItems_Quantity')
-    ALTER TABLE [dbo].[Inventory_Receipt_Items] ADD CONSTRAINT [CK_InventoryReceiptItems_Quantity] CHECK ([quantity] > 0);
-
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_InventoryReceiptItems_ImportPrice')
-    ALTER TABLE [dbo].[Inventory_Receipt_Items] ADD CONSTRAINT [CK_InventoryReceiptItems_ImportPrice] CHECK ([import_price] >= 0);
-
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_InventoryMovements_Quantity')
-    ALTER TABLE [dbo].[Inventory_Movements] ADD CONSTRAINT [CK_InventoryMovements_Quantity] CHECK ([quantity] > 0);
+END
+GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Orders_Amounts')
+BEGIN
     ALTER TABLE [dbo].[Orders] ADD CONSTRAINT [CK_Orders_Amounts] CHECK (
         [subtotal_amount] >= 0 AND [final_amount] >= 0 AND [shipping_fee] >= 0 AND [coolcash_used] >= 0
     );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Orders_RefundAmount')
+BEGIN
+    ALTER TABLE [dbo].[Orders] ADD CONSTRAINT [CK_Orders_RefundAmount] CHECK ([refund_amount] IS NULL OR [refund_amount] >= 0);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_ProductVariants_Stock')
+BEGIN
+    ALTER TABLE [dbo].[Product_Variants] ADD CONSTRAINT [CK_ProductVariants_Stock] CHECK ([stock_quantity] >= 0);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_ProductVariants_SalePrice')
+BEGIN
+    ALTER TABLE [dbo].[Product_Variants] ADD CONSTRAINT [CK_ProductVariants_SalePrice] CHECK ([sale_price] >= 0);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_ProductVariants_ImportPrice')
+BEGIN
+    ALTER TABLE [dbo].[Product_Variants] ADD CONSTRAINT [CK_ProductVariants_ImportPrice] CHECK ([import_price] >= 0);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Products_BasePrice')
+BEGIN
+    ALTER TABLE [dbo].[Products] ADD CONSTRAINT [CK_Products_BasePrice] CHECK ([base_price] >= 0);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Products_RatingAvg')
+BEGIN
+    ALTER TABLE [dbo].[Products] ADD CONSTRAINT [CK_Products_RatingAvg] CHECK ([rating_avg] >= 0.0 AND [rating_avg] <= 5.0);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Reviews_Rating')
+BEGIN
+    ALTER TABLE [dbo].[Reviews] ADD CONSTRAINT [CK_Reviews_Rating] CHECK ([rating] >= 1 AND [rating] <= 5);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_CartItems_Quantity')
+BEGIN
+    ALTER TABLE [dbo].[Cart_Items] ADD CONSTRAINT [CK_CartItems_Quantity] CHECK ([quantity] > 0);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_OrderItems_Quantity')
+BEGIN
+    ALTER TABLE [dbo].[Order_Items] ADD CONSTRAINT [CK_OrderItems_Quantity] CHECK ([quantity] > 0);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_OrderReturns_Quantity')
+BEGIN
+    ALTER TABLE [dbo].[Order_Returns] ADD CONSTRAINT [CK_OrderReturns_Quantity] CHECK ([quantity] > 0);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_OrderReturns_RefundAmount')
+BEGIN
+    ALTER TABLE [dbo].[Order_Returns] ADD CONSTRAINT [CK_OrderReturns_RefundAmount] CHECK ([refund_amount] >= 0);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_InventoryReceiptItems_Quantity')
+BEGIN
+    ALTER TABLE [dbo].[Inventory_Receipt_Items] ADD CONSTRAINT [CK_InventoryReceiptItems_Quantity] CHECK ([quantity] > 0);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_InventoryReceiptItems_ImportPrice')
+BEGIN
+    ALTER TABLE [dbo].[Inventory_Receipt_Items] ADD CONSTRAINT [CK_InventoryReceiptItems_ImportPrice] CHECK ([import_price] >= 0);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_InventoryMovements_Quantity')
+BEGIN
+    ALTER TABLE [dbo].[Inventory_Movements] ADD CONSTRAINT [CK_InventoryMovements_Quantity] CHECK ([quantity] > 0);
+END
+GO

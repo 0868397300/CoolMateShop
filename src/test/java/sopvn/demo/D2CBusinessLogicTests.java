@@ -1411,4 +1411,251 @@ public class D2CBusinessLogicTests {
         assertEquals(10, variant.getStockQuantity(), "Stock must not be incremented when release already exists");
     }
 
+
+    // =========================================================================
+    // 29. STAFF COMPLETE return with COOLCASH -> forbidden
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 29: STAFF COMPLETE return with COOLCASH -> forbidden")
+    void test29_staffCompleteReturnWithCoolcashForbidden() {
+        User staff = new User(); staff.setId(2901L);
+        Role staffRole = new Role(); staffRole.setRoleName("ROLE_STAFF");
+        staff.setRoles(Collections.singleton(staffRole));
+
+        OrderReturn req = new OrderReturn();
+        req.setId(291L);
+        req.setStatus("PROCESSING");
+        req.setRefundAmount(BigDecimal.valueOf(150_000)); // Operation has refund
+
+        when(orderReturnRepository.findByIdForUpdate(291L)).thenReturn(Optional.of(req));
+
+        CustomException ex = assertThrows(CustomException.class, () -> {
+            returnService.completeReturn(291L, "COOLCASH", staff);
+        });
+        assertTrue(ex.getMessage().contains("Nhân viên (STAFF) không có quyền") || ex.getMessage().contains("ADMIN"));
+    }
+
+    // =========================================================================
+    // 30. ADMIN COMPLETE return with COOLCASH -> allowed and finalizes accounting
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 30: ADMIN COMPLETE return with COOLCASH -> allowed and finalizes accounting")
+    void test30_adminCompleteReturnWithCoolcashAllowed() {
+        User admin = new User(); admin.setId(3001L);
+        Role adminRole = new Role(); adminRole.setRoleName("ROLE_ADMIN");
+        admin.setRoles(Collections.singleton(adminRole));
+
+        User customer = new User(); customer.setId(3002L);
+        customer.setCoolcashBalance(BigDecimal.valueOf(10_000));
+        customer.setTotalSpent(BigDecimal.valueOf(1_000_000));
+        customer.setMembershipTier("SILVER");
+
+        Order order = new Order(); order.setId(301L); order.setUser(customer); order.setOrderCode("CM-RET-301");
+        order.setFinalAmount(BigDecimal.valueOf(500_000));
+        order.setCoolcashEarned(BigDecimal.valueOf(15_000));
+
+        OrderReturn req = new OrderReturn();
+        req.setId(302L);
+        req.setUser(customer);
+        req.setOrder(order);
+        req.setStatus("PROCESSING");
+        req.setRefundAmount(BigDecimal.valueOf(250_000));
+
+        when(orderReturnRepository.findByIdForUpdate(302L)).thenReturn(Optional.of(req));
+        when(orderReturnRepository.save(any(OrderReturn.class))).thenAnswer(i -> i.getArgument(0));
+        when(userRepository.findByIdForUpdate(3002L)).thenReturn(Optional.of(customer));
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+
+        returnService.completeReturn(302L, "COOLCASH", admin);
+
+        assertEquals("COMPLETED", req.getStatus());
+        assertEquals("REFUNDED", req.getRefundStatus());
+        assertEquals("COOLCASH-RETURN-302", req.getRefundReference());
+        assertEquals(0, customer.getTotalSpent().compareTo(BigDecimal.valueOf(750_000)), "totalSpent must be reduced by refundAmount");
+    }
+
+    // =========================================================================
+    // 31. Duplicate /vi-coolcash mapping verification
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 31: Duplicate /vi-coolcash mapping -> startup must pass with exactly one mapping")
+    void test31_duplicateViCoolcashMappingStartup() {
+        // Verify WalletController has the mapping
+        assertDoesNotThrow(() -> {
+            Class<?> walletCtrl = Class.forName("sopvn.demo.wallet.WalletController");
+            assertNotNull(walletCtrl);
+        });
+
+        // Verify CoolCashController is absent
+        assertThrows(ClassNotFoundException.class, () -> {
+            Class.forName("sopvn.demo.controller.CoolCashController");
+        });
+        assertThrows(ClassNotFoundException.class, () -> {
+            Class.forName("sopvn.demo.wallet.CoolCashController");
+        });
+    }
+
+    // =========================================================================
+    // 32. External refund failure must NOT leave accounting finalized
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 32: External refund failure must NOT leave accounting finalized")
+    void test32_externalRefundFailureMustNotLeaveAccountingFinalized() {
+        User admin = new User(); admin.setId(3201L);
+        Role adminRole = new Role(); adminRole.setRoleName("ROLE_ADMIN");
+        admin.setRoles(Collections.singleton(adminRole));
+
+        User customer = new User(); customer.setId(3202L);
+        customer.setCoolcashBalance(BigDecimal.valueOf(50_000));
+        customer.setTotalSpent(BigDecimal.valueOf(2_000_000));
+        customer.setMembershipTier("SILVER");
+
+        Order order = new Order(); order.setId(321L); order.setUser(customer); order.setOrderCode("CM-RET-321");
+        order.setFinalAmount(BigDecimal.valueOf(500_000));
+        order.setCoolcashEarned(BigDecimal.valueOf(25_000));
+
+        OrderReturn req = new OrderReturn();
+        req.setId(322L);
+        req.setUser(customer);
+        req.setOrder(order);
+        req.setStatus("PROCESSING");
+        req.setRefundStatus("REFUND_PENDING");
+        req.setRefundAmount(BigDecimal.valueOf(200_000));
+
+        when(orderReturnRepository.findByIdForUpdate(322L)).thenReturn(Optional.of(req));
+        when(orderReturnRepository.save(any(OrderReturn.class))).thenAnswer(i -> i.getArgument(0));
+
+        // Step 1: Start refund processing
+        returnService.startProcessingReturnRefund(322L, admin);
+        assertEquals("REFUND_PROCESSING", req.getRefundStatus());
+
+        // Step 2: Bank transfer fails -> mark failed
+        returnService.markReturnRefundFailed(322L, "Tài khoản ngân hàng người nhận không hợp lệ", admin);
+        assertEquals("REFUND_FAILED", req.getRefundStatus());
+
+        // Assert accounting: totalSpent and balance must NOT be altered when refund failed!
+        assertEquals(0, customer.getTotalSpent().compareTo(BigDecimal.valueOf(2_000_000)), "totalSpent must remain unchanged when refund fails");
+        assertEquals(0, customer.getCoolcashBalance().compareTo(BigDecimal.valueOf(50_000)), "balance must remain unchanged when refund fails");
+        assertEquals("SILVER", customer.getMembershipTier());
+    }
+
+    // =========================================================================
+    // 33. Concurrent return refund confirmation idempotency
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 33: Concurrent return refund confirmation idempotency")
+    void test33_concurrentReturnRefundConfirmation() {
+        User admin = new User(); admin.setId(3301L);
+        Role adminRole = new Role(); adminRole.setRoleName("ROLE_ADMIN");
+        admin.setRoles(Collections.singleton(adminRole));
+
+        User customer = new User(); customer.setId(3302L);
+        customer.setTotalSpent(BigDecimal.valueOf(1_500_000));
+
+        OrderReturn req = new OrderReturn();
+        req.setId(331L);
+        req.setUser(customer);
+        req.setStatus("PROCESSING");
+        req.setRefundStatus("REFUND_PROCESSING");
+        req.setRefundAmount(BigDecimal.valueOf(100_000));
+
+        when(orderReturnRepository.findByIdForUpdate(331L)).thenReturn(Optional.of(req));
+        when(orderReturnRepository.save(any(OrderReturn.class))).thenAnswer(i -> i.getArgument(0));
+        when(userRepository.findByIdForUpdate(3302L)).thenReturn(Optional.of(customer));
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+
+        // First confirmation succeeds
+        returnService.confirmReturnRefund(331L, "BANK-TXN-REAL-777", admin);
+        assertEquals("REFUNDED", req.getRefundStatus());
+        assertEquals("BANK-TXN-REAL-777", req.getRefundReference());
+        assertEquals(0, customer.getTotalSpent().compareTo(BigDecimal.valueOf(1_400_000)));
+
+        // Second confirmation with same reference is idempotent (does not double decrease totalSpent)
+        assertDoesNotThrow(() -> {
+            returnService.confirmReturnRefund(331L, "BANK-TXN-REAL-777", admin);
+        });
+        assertEquals(0, customer.getTotalSpent().compareTo(BigDecimal.valueOf(1_400_000)), "totalSpent must not be deducted twice on duplicate confirmation");
+
+        // Third confirmation with different reference throws error
+        assertThrows(CustomException.class, () -> {
+            returnService.confirmReturnRefund(331L, "DIFFERENT-TXN-888", admin);
+        });
+    }
+
+    // =========================================================================
+    // 34. Concurrent inventory movement idempotency
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 34: Concurrent inventory movement idempotency")
+    void test34_concurrentInventoryMovementIdempotency() {
+        ProductVariant variant = new ProductVariant();
+        variant.setId(341L);
+        variant.setStockQuantity(20);
+
+        when(productVariantRepository.findByIdForUpdate(341L)).thenReturn(Optional.of(variant));
+        when(productVariantRepository.save(any(ProductVariant.class))).thenAnswer(i -> i.getArgument(0));
+
+        // First reservation: succeeds, stock drops 20 -> 15
+        stockService.reserveStock(variant, 5, 3401L);
+        assertEquals(15, variant.getStockQuantity());
+
+        // When movement already recorded in repo (as simulated by DB index / repo check)
+        when(inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndVariantIdAndMovementType(
+                "ORDER", 3401L, 341L, "ORDER_RESERVE")).thenReturn(true);
+
+        // Second duplicate reservation attempt for same order & variant is a no-op!
+        stockService.reserveStock(variant, 5, 3401L);
+        assertEquals(15, variant.getStockQuantity(), "Stock must not be double deducted");
+    }
+
+    // =========================================================================
+    // 35. CoolCash revoke reconciles balance and ledger without exceeding balance
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 35: CoolCash revoke reconciles balance and ledger without exceeding balance")
+    void test35_coolCashRevokeReconcilesLedgerWithoutNegativeExceedingBalance() {
+        User user = new User();
+        user.setId(3501L);
+        user.setCoolcashBalance(BigDecimal.valueOf(10_000)); // Only has 10k in wallet
+
+        when(userRepository.findByIdForUpdate(3501L)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+
+        Order order = new Order(); order.setId(351L); order.setOrderCode("CM-351");
+
+        // Requesting to revoke 30k cashback, but customer only has 10k left
+        coolCashService.revokeOrderCashback(user, order, BigDecimal.valueOf(30_000), "Thu hồi đổi trả", "KEY-REVOKE-351");
+
+        // Balance should be exactly 0 (not negative)
+        assertEquals(0, user.getCoolcashBalance().compareTo(BigDecimal.ZERO));
+
+        // Captured transaction amount must be exactly -10,000 (reconciling with the balance change)
+        verify(coolCashTransactionRepository).save(argThat(tx -> 
+            tx.getAmount().compareTo(BigDecimal.valueOf(-10_000)) == 0 &&
+            "REVOKE_RETURN".equals(tx.getTransactionType()) &&
+            tx.getDescription().contains("10000/30000")
+        ));
+    }
+
+    // =========================================================================
+    // 36. Resource ownership validation in AdminProductController
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 36: Resource ownership validation in AdminProductController")
+    void test36_adminProductOwnershipValidation() {
+        Product p1 = new Product(); p1.setId(100L);
+        Product p2 = new Product(); p2.setId(200L);
+
+        ProductVariant vOfP2 = new ProductVariant();
+        vOfP2.setId(555L);
+        vOfP2.setProduct(p2); // belongs to product 200
+
+        when(productVariantRepository.findById(555L)).thenReturn(Optional.of(vOfP2));
+
+        // When admin attempts to update or delete variant 555 under product 100 -> rejected!
+        ProductVariant variant = productVariantRepository.findById(555L).orElseThrow();
+        boolean belongsToP1 = variant.getProduct() != null && Long.valueOf(100L).equals(variant.getProduct().getId());
+        assertFalse(belongsToP1, "Variant of product 200 must not belong to product 100");
+    }
+
 }

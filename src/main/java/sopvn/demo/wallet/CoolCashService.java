@@ -84,8 +84,15 @@ public class CoolCashService {
 
         User lockedUser = findUserWithLock(user.getId(), user);
         BigDecimal current = lockedUser.getCoolcashBalance() != null ? lockedUser.getCoolcashBalance() : BigDecimal.ZERO;
-        BigDecimal newBal = current.subtract(amount);
-        if (newBal.compareTo(BigDecimal.ZERO) < 0) newBal = BigDecimal.ZERO;
+
+        // P0-5: Không silently clamp balance về zero rồi tạo ledger âm lớn hơn số dư.
+        // Số tiền trừ khỏi ví và số tiền ghi trên ledger phải luôn khớp nhau tuyệt đối (Reconcile 100%).
+        BigDecimal actualDeduction = amount.min(current);
+        if (actualDeduction.compareTo(BigDecimal.ZERO) < 0) {
+            actualDeduction = BigDecimal.ZERO;
+        }
+
+        BigDecimal newBal = current.subtract(actualDeduction);
         lockedUser.setCoolcashBalance(newBal);
         userRepository.save(lockedUser);
         user.setCoolcashBalance(newBal);
@@ -93,11 +100,15 @@ public class CoolCashService {
         CoolCashTransaction tx = new CoolCashTransaction();
         tx.setUser(lockedUser);
         tx.setOrder(order);
-        tx.setAmount(amount.negate());
+        tx.setAmount(actualDeduction.negate());
         tx.setTransactionType("REVOKE_RETURN");
         tx.setStatus("COMPLETED");
         tx.setIdempotencyKey(key);
-        tx.setDescription((reason != null ? reason : "Thu hồi hoàn tiền do đổi trả sản phẩm") + " [" + key + "]");
+        String desc = (reason != null ? reason : "Thu hồi hoàn tiền do đổi trả sản phẩm");
+        if (amount.compareTo(actualDeduction) > 0) {
+            desc += " (Thu hồi " + actualDeduction + "/" + amount + "đ do số dư ví khả dụng không đủ)";
+        }
+        tx.setDescription(desc + " [" + key + "]");
         tx.setCreatedAt(LocalDateTime.now());
         coolCashTransactionRepository.save(tx);
     }
@@ -298,14 +309,23 @@ public class CoolCashService {
         if (user == null) return;
 
         User lockedUser = findUserWithLock(user.getId(), user);
-        BigDecimal actualAmount = "MINUS".equalsIgnoreCase(type) ? amount.negate() : amount;
         BigDecimal current = lockedUser.getCoolcashBalance() != null ? lockedUser.getCoolcashBalance() : BigDecimal.ZERO;
-        BigDecimal newBal = current.add(actualAmount);
-        if (newBal.compareTo(BigDecimal.ZERO) < 0) newBal = BigDecimal.ZERO;
 
-        lockedUser.setCoolcashBalance(newBal);
+        BigDecimal actualAmount;
+        if ("MINUS".equalsIgnoreCase(type)) {
+            // Reconcile: không cho phép trừ âm quá số dư hiện có
+            BigDecimal actualDeduction = amount.min(current);
+            actualAmount = actualDeduction.negate();
+            BigDecimal newBal = current.subtract(actualDeduction);
+            lockedUser.setCoolcashBalance(newBal);
+        } else {
+            actualAmount = amount;
+            BigDecimal newBal = current.add(actualAmount);
+            lockedUser.setCoolcashBalance(newBal);
+        }
+
         userRepository.save(lockedUser);
-        user.setCoolcashBalance(newBal);
+        user.setCoolcashBalance(lockedUser.getCoolcashBalance());
 
         CoolCashTransaction tx = new CoolCashTransaction();
         tx.setUser(lockedUser);

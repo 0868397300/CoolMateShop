@@ -2,6 +2,7 @@ package sopvn.demo.inventory;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sopvn.demo.core.exception.CustomException;
@@ -42,6 +43,17 @@ public class StockService {
                 .orElseThrow(() -> new CustomException("Biến thể sản phẩm không tồn tại: " + variantId));
     }
 
+    private void saveMovementSafe(InventoryMovement movement) {
+        try {
+            inventoryMovementRepository.save(movement);
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Giao dịch di chuyển kho đã tồn tại trên DB (UQ_InvMovements_BusinessKey): [{}:{}:{}:{}], xử lý idempotent.",
+                    movement.getReferenceType(), movement.getReferenceId(),
+                    movement.getVariant() != null ? movement.getVariant().getId() : null,
+                    movement.getMovementType());
+        }
+    }
+
     @Transactional
     public void reserveStock(ProductVariant variant, int quantity, Long orderId) {
         if (quantity <= 0) return;
@@ -72,7 +84,7 @@ public class StockService {
         movement.setReferenceType("ORDER");
         movement.setReferenceId(orderId);
         movement.setNote("Giữ hàng khi tạo đơn hàng #" + orderId);
-        inventoryMovementRepository.save(movement);
+        saveMovementSafe(movement);
     }
 
     @Transactional
@@ -106,7 +118,7 @@ public class StockService {
                 movement.setReferenceType("ORDER");
                 movement.setReferenceId(order.getId());
                 movement.setNote("Xác nhận bán xuất kho đơn #" + order.getOrderCode());
-                inventoryMovementRepository.save(movement);
+                saveMovementSafe(movement);
             }
         }
     }
@@ -156,7 +168,7 @@ public class StockService {
                 movement.setReferenceType("ORDER");
                 movement.setReferenceId(order.getId());
                 movement.setNote("Hoàn kho giải phóng hàng tạm giữ cho đơn #" + order.getOrderCode());
-                inventoryMovementRepository.save(movement);
+                saveMovementSafe(movement);
             }
         }
     }
@@ -200,7 +212,7 @@ public class StockService {
                 movement.setReferenceType("ORDER");
                 movement.setReferenceId(order.getId());
                 movement.setNote("Nhập lại kho từ đơn hàng đã thanh toán bị hủy #" + order.getOrderCode());
-                inventoryMovementRepository.save(movement);
+                saveMovementSafe(movement);
             }
         }
     }
@@ -230,7 +242,7 @@ public class StockService {
         movement.setReferenceType("RETURN");
         movement.setReferenceId(returnId);
         movement.setNote("Nhập lại kho từ yêu cầu đổi/trả hàng #" + returnId);
-        inventoryMovementRepository.save(movement);
+        saveMovementSafe(movement);
     }
 
     @Transactional
@@ -262,7 +274,7 @@ public class StockService {
         movement.setReferenceType("RETURN");
         movement.setReferenceId(returnId);
         movement.setNote("Xuất kho biến thể mới từ yêu cầu đổi hàng #" + returnId);
-        inventoryMovementRepository.save(movement);
+        saveMovementSafe(movement);
     }
 
     @Transactional
@@ -290,7 +302,7 @@ public class StockService {
         movement.setReferenceId(null);
         movement.setCreatedBy(adminUser);
         movement.setNote((reason != null && !reason.isBlank()) ? reason : ("Điều chỉnh tồn kho từ " + before + " thành " + newQuantity));
-        inventoryMovementRepository.save(movement);
+        saveMovementSafe(movement);
     }
 
     @Transactional
@@ -344,7 +356,7 @@ public class StockService {
             movement.setReferenceId(receipt.getId());
             movement.setCreatedBy(admin);
             movement.setNote("Nhập hàng từ phiếu #" + receipt.getReceiptCode() + " (Giá nhập: " + receivedCost + "đ, Giá vốn mới: " + newAverageCost + "đ)");
-            inventoryMovementRepository.save(movement);
+            saveMovementSafe(movement);
         }
     }
 }

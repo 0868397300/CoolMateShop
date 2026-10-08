@@ -339,6 +339,16 @@ BEGIN
     CREATE UNIQUE NONCLUSTERED INDEX [UQ_PromotionUsage_Order_Promo]
     ON [dbo].[Promotion_Usages]([order_id], [promotion_id])
     WHERE [order_id] IS NOT NULL;
+    PRINT 'Created unique index UQ_PromotionUsage_Order_Promo';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_InvMovements_BusinessKey' AND object_id = OBJECT_ID(N'[dbo].[Inventory_Movements]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [UQ_InvMovements_BusinessKey]
+    ON [dbo].[Inventory_Movements] ([reference_type], [reference_id], [variant_id], [movement_type])
+    WHERE [reference_type] IS NOT NULL AND [reference_id] IS NOT NULL;
+    PRINT 'Created unique index UQ_InvMovements_BusinessKey';
 END
 GO
 

@@ -344,6 +344,11 @@ public class AdminProductController {
             ProductVariant variant = productVariantRepository.findById(variantId)
                     .orElseThrow(() -> new CustomException("Biến thể không tồn tại: " + variantId));
 
+            // P0-7: Resource ownership validation: variantId phải thuộc productId (id)
+            if (variant.getProduct() == null || !id.equals(variant.getProduct().getId())) {
+                throw new CustomException("Biến thể #" + variantId + " không thuộc sản phẩm #" + id + ".");
+            }
+
             if (sku != null && !sku.isBlank()) {
                 String cleanSku = sku.trim().toUpperCase();
                 if (!cleanSku.equalsIgnoreCase(variant.getSku()) && productVariantRepository.existsBySku(cleanSku)) {
@@ -380,11 +385,19 @@ public class AdminProductController {
                                 Principal principal,
                                 RedirectAttributes redirectAttributes) {
         try {
-            productVariantRepository.findById(variantId).ifPresent(v -> {
-                v.setIsActive(false);
-                productVariantRepository.save(v);
-                redirectAttributes.addFlashAttribute("successMessage", "Đã vô hiệu hóa biến thể SKU: " + v.getSku());
-            });
+            ProductVariant variant = productVariantRepository.findById(variantId)
+                    .orElseThrow(() -> new CustomException("Biến thể không tồn tại: " + variantId));
+
+            // P0-7: Resource ownership validation: variantId phải thuộc productId (id)
+            if (variant.getProduct() == null || !id.equals(variant.getProduct().getId())) {
+                throw new CustomException("Biến thể #" + variantId + " không thuộc sản phẩm #" + id + ".");
+            }
+
+            variant.setIsActive(false);
+            productVariantRepository.save(variant);
+            redirectAttributes.addFlashAttribute("successMessage", "Đã vô hiệu hóa biến thể SKU: " + variant.getSku());
+        } catch (CustomException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         } catch (Exception ex) {
             redirectAttributes.addFlashAttribute("errorMessage", "Không thể xóa biến thể: " + ex.getMessage());
         }
@@ -429,8 +442,18 @@ public class AdminProductController {
                               Principal principal,
                               RedirectAttributes redirectAttributes) {
         try {
-            productImageRepository.deleteById(imageId);
+            ProductImage image = productImageRepository.findById(imageId)
+                    .orElseThrow(() -> new CustomException("Hình ảnh không tồn tại: " + imageId));
+
+            // P0-7: Resource ownership validation: imageId phải thuộc productId (id)
+            if (image.getProduct() == null || !id.equals(image.getProduct().getId())) {
+                throw new CustomException("Hình ảnh #" + imageId + " không thuộc sản phẩm #" + id + ".");
+            }
+
+            productImageRepository.delete(image);
             redirectAttributes.addFlashAttribute("successMessage", "Đã xóa ảnh sản phẩm.");
+        } catch (CustomException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         } catch (Exception ex) {
             redirectAttributes.addFlashAttribute("errorMessage", "Lỗi khi xóa ảnh: " + ex.getMessage());
         }
