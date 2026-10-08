@@ -1253,9 +1253,10 @@ public class D2CBusinessLogicTests {
         OrderReturn req = new OrderReturn();
         req.setId(231L);
         req.setStatus("PROCESSING");
-        req.setRefundStatus("REFUND_PENDING");
+        req.setRefundStatus("REFUND_PROCESSING");
         req.setRefundAmount(BigDecimal.valueOf(250_000));
 
+        when(orderReturnRepository.findByIdForUpdate(231L)).thenReturn(Optional.of(req));
         when(orderReturnRepository.findById(231L)).thenReturn(Optional.of(req));
         when(orderReturnRepository.save(any(OrderReturn.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -1264,6 +1265,27 @@ public class D2CBusinessLogicTests {
         assertEquals("COMPLETED", req.getStatus());
         assertEquals("REFUNDED", req.getRefundStatus());
         assertEquals("BANK-TXN-REAL-888", req.getRefundReference());
+    }
+
+    @Test
+    @DisplayName("TEST 23B: confirmReturnRefund rejects REFUND_PENDING state directly")
+    void test23b_confirmReturnRefundRejectsPendingState() {
+        User admin = new User(); admin.setId(2302L);
+        Role adminRole = new Role(); adminRole.setRoleName("ROLE_ADMIN");
+        admin.setRoles(Collections.singleton(adminRole));
+
+        OrderReturn req = new OrderReturn();
+        req.setId(232L);
+        req.setStatus("PROCESSING");
+        req.setRefundStatus("REFUND_PENDING");
+        req.setRefundAmount(BigDecimal.valueOf(250_000));
+
+        when(orderReturnRepository.findByIdForUpdate(232L)).thenReturn(Optional.of(req));
+        when(orderReturnRepository.findById(232L)).thenReturn(Optional.of(req));
+
+        assertThrows(CustomException.class, () -> {
+            returnService.confirmReturnRefund(232L, "BANK-TXN-REAL-888", admin);
+        });
     }
 
     // =========================================================================

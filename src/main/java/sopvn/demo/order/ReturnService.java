@@ -332,9 +332,10 @@ public class ReturnService {
         }
 
         OrderReturn req = orderReturnRepository.findByIdForUpdate(returnId)
-                .orElseThrow(() -> new CustomException("Không tìm thấy yêu cầu đổi trả #" + returnId));
+                .orElseGet(() -> orderReturnRepository.findById(returnId)
+                        .orElseThrow(() -> new CustomException("Không tìm thấy yêu cầu đổi trả #" + returnId)));
 
-        // Idempotency: nếu đã REFUNDED với cùng mã tham chiếu thì bỏ qua
+        // Idempotency: nếu đã REFUNDED với cùng mã tham chiếu thì bỏ qua (no-op)
         if ("REFUNDED".equalsIgnoreCase(req.getRefundStatus())) {
             if (refundReference != null && refundReference.trim().equals(req.getRefundReference())) {
                 return;
@@ -342,8 +343,9 @@ public class ReturnService {
             throw new CustomException("Yêu cầu đổi trả đã được hoàn tiền với mã tham chiếu khác: " + req.getRefundReference());
         }
 
-        if (!"REFUND_PROCESSING".equalsIgnoreCase(req.getRefundStatus()) && !"REFUND_PENDING".equalsIgnoreCase(req.getRefundStatus())) {
-            throw new CustomException("Yêu cầu đổi trả không ở trạng thái chờ hoàn tiền hợp lệ (Trạng thái hiện tại: " + req.getRefundStatus() + ").");
+        // Chỉ cho phép: REFUND_PROCESSING -> REFUNDED. Tuyệt đối không cho phép REFUND_PENDING -> REFUNDED.
+        if (!"REFUND_PROCESSING".equalsIgnoreCase(req.getRefundStatus())) {
+            throw new CustomException("Chỉ cho phép xác nhận hoàn tiền khi yêu cầu ở trạng thái REFUND_PROCESSING (Trạng thái hiện tại: " + req.getRefundStatus() + ").");
         }
 
         if (refundReference == null || refundReference.isBlank()) {
