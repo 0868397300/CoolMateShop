@@ -431,7 +431,7 @@ public class ReturnService {
     }
 
     @Transactional
-    public void processReturnApproval(Long returnId, String action, String refundMethod, String rejectReason, User staffUser) {
+    public void processReturnApproval(Long returnId, String action, String refundMethod, String refundReference, String rejectReason, User staffUser) {
         if (action == null || action.isBlank()) {
             throw new CustomException("Hành động xử lý đổi trả không được để trống.");
         }
@@ -454,7 +454,7 @@ public class ReturnService {
                 startProcessingReturnRefund(returnId, staffUser);
                 break;
             case "CONFIRM_REFUND":
-                confirmReturnRefund(returnId, rejectReason, staffUser);
+                confirmReturnRefund(returnId, refundReference != null && !refundReference.isBlank() ? refundReference : rejectReason, staffUser);
                 break;
             case "MARK_REFUND_FAILED":
                 markReturnRefundFailed(returnId, rejectReason, staffUser);
@@ -462,5 +462,10 @@ public class ReturnService {
             default:
                 throw new CustomException("Hành động xử lý đổi trả không hợp lệ: '" + action + "'. Chỉ chấp nhận: APPROVE, REJECT, PROCESS, COMPLETE, START_REFUND, CONFIRM_REFUND, MARK_REFUND_FAILED.");
         }
+    }
+
+    @Transactional
+    public void processReturnApproval(Long returnId, String action, String refundMethod, String rejectReason, User staffUser) {
+        processReturnApproval(returnId, action, refundMethod, null, rejectReason, staffUser);
     }
 }

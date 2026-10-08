@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<html lang="vi" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,151 +7,299 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f1f5f9; }
-        .sidebar { width: 260px; min-height: 100vh; background: #0f172a; color: #fff; }
-        .sidebar .nav-link { color: #94a3b8; padding: 12px 20px; font-weight: 500; border-radius: 8px; margin: 4px 12px; }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: #1e293b; }
-        .main-content { flex: 1; padding: 30px; }
-        .card-custom { background: #fff; border-radius: 16px; border: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f1f5f9; color: #0f172a; }
+        .sidebar { width: 260px; min-height: 100vh; background: #0f172a; color: #fff; position: fixed; }
+        .sidebar a { color: #94a3b8; text-decoration: none; display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-radius: 8px; font-weight: 500; }
+        .sidebar a:hover, .sidebar a.active { color: #fff; background: #1e293b; }
+        .main-wrapper { margin-left: 260px; padding: 30px; }
+        .card-custom { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; }
     </style>
 </head>
 <body>
 <div class="d-flex">
     <!-- Sidebar -->
-    <div class="sidebar d-flex flex-column p-3">
-        <a th:href="@{/admin/dashboard}" class="text-white text-decoration-none fs-4 fw-bold px-3 py-2">
-            COOLMATE<span class="text-primary">.</span> <span class="badge bg-primary fs-6">ADMIN</span>
-        </a>
-        <hr class="text-secondary">
-        <ul class="nav nav-pills flex-column mb-auto">
-            <li class="nav-item"><a th:href="@{/admin/dashboard}" class="nav-link"><i class="bi bi-speedometer2 me-2"></i>Tổng Quan</a></li>
-            <li><a th:href="@{/admin/don-hang}" class="nav-link"><i class="bi bi-cart3 me-2"></i>Đơn Hàng</a></li>
-            <li><a th:href="@{/admin/san-pham}" class="nav-link"><i class="bi bi-box-seam me-2"></i>Sản Phẩm</a></li>
-            <li><a th:href="@{/admin/nhap-kho}" class="nav-link"><i class="bi bi-arrow-down-left-square me-2"></i>Nhập Kho</a></li>
-            <li><a th:href="@{/admin/doi-tra}" class="nav-link active"><i class="bi bi-arrow-repeat me-2"></i>Đổi Trả (60 Ngày)</a></li>
-        </ul>
-        <hr class="text-secondary">
-        <div class="px-3">
-            <a th:href="@{/}" class="btn btn-outline-light btn-sm w-100 rounded-pill"><i class="bi bi-house me-1"></i>Về Cửa Hàng</a>
+    <div class="sidebar p-3">
+        <h4 class="fw-bold px-3 py-2 text-white mb-4">COOLMATE<span class="text-primary">.</span> <span class="badge bg-primary fs-6">ADMIN</span></h4>
+        <div class="d-flex flex-column gap-1">
+            <a th:href="@{/admin/dashboard}"><i class="bi bi-speedometer2"></i> Tổng quan tài chính</a>
+            <a th:href="@{/admin/don-hang}"><i class="bi bi-receipt"></i> Quản lý đơn hàng</a>
+            <a th:href="@{/admin/san-pham}"><i class="bi bi-box-seam"></i> Quản lý sản phẩm</a>
+            <a th:href="@{/admin/danh-muc}"><i class="bi bi-tags"></i> Danh mục &amp; BST</a>
+            <a th:href="@{/admin/nhap-kho}"><i class="bi bi-box-arrow-in-down"></i> Quản lý nhập kho</a>
+            <a th:href="@{/admin/doi-tra}" class="active"><i class="bi bi-arrow-repeat"></i> Đổi trả 60 ngày</a>
+            <a th:href="@{/admin/khach-hang}"><i class="bi bi-people"></i> Hội viên &amp; Khách hàng</a>
+            <a th:href="@{/admin/khuyen-mai}"><i class="bi bi-ticket-perforated"></i> Khuyến mãi &amp; Combo</a>
+            <a th:href="@{/admin/danh-gia}"><i class="bi bi-star"></i> Đánh giá &amp; Fit Size</a>
+            <a th:href="@{/}" target="_blank" class="mt-4 text-warning"><i class="bi bi-shop"></i> Xem Website</a>
         </div>
     </div>
 
     <!-- Main Content -->
-    <div class="main-content">
+    <div class="main-wrapper flex-grow-1">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
                 <h3 class="fw-bold mb-1">Xử Lý Yêu Cầu Đổi / Trả Hàng (60 Ngày)</h3>
-                <p class="text-muted small mb-0">Quản lý và điều phối các yêu cầu đổi size, đổi mẫu và hoàn tiền ví CoolCash</p>
+                <p class="text-muted small mb-0">Quản lý tiếp nhận hàng trả về, kiểm định chất lượng, đổi size và hoàn tiền theo chính sách Coolmate.</p>
             </div>
         </div>
 
-        <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert"><i class="bi bi-exclamation-triangle-fill me-2"></i><span th:text="${errorMessage}"></span><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-        <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show rounded-3" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i><span th:text="${errorMessage}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show rounded-3" role="alert">
             <i class="bi bi-check-circle-fill me-2"></i><span th:text="${successMessage}"></span>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
 
-        <div class="card-custom p-4">
+        <div class="card-custom overflow-hidden">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
+                    <thead class="table-light small text-uppercase">
                         <tr>
-                            <th>Mã Đơn Hàng</th>
+                            <th class="ps-3">Yêu Cầu / Đơn Hàng</th>
                             <th>Khách Hàng</th>
-                            <th>Loại Yêu Cầu</th>
-                            <th>Lý Do Chi Tiết</th>
-                            <th>Số Tiền / Hoàn</th>
+                            <th>Phân Loại</th>
+                            <th>Chi Tiết &amp; Lý Do</th>
+                            <th>Khoản Hoàn Tiền</th>
                             <th>Trạng Thái</th>
-                            <th>Hành Động</th>
+                            <th class="text-end pe-3">Hành Động</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr th:if="${returns == null or returns.isEmpty()}">
                             <td colspan="7" class="text-center py-5 text-muted">
                                 <i class="bi bi-check2-circle display-4 d-block mb-2 text-success"></i>
-                                Hiện tại không có yêu cầu đổi trả nào đang chờ xử lý.
+                                Hiện tại không có yêu cầu đổi trả nào trên hệ thống.
                             </td>
                         </tr>
                         <tr th:each="r : ${returns}">
-                            <td>
-                                <strong th:text="${r.order != null ? r.order.orderCode : 'N/A'}">CM123456</strong>
+                            <td class="ps-3">
+                                <strong class="text-primary d-block" th:text="'#RET-' + ${r.id}">#RET-1</strong>
+                                <small class="text-muted">Đơn: <strong class="text-dark" th:text="${r.order != null ? '#' + r.order.orderCode : 'N/A'}">#CM123</strong></small>
+                                <small class="d-block text-muted" th:text="${r.createdAt}">2026-10-01</small>
                             </td>
                             <td>
                                 <div class="fw-bold" th:text="${r.user != null ? r.user.fullName : 'Khách hàng'}">Nguyễn Văn A</div>
                                 <small class="text-muted" th:text="${r.user != null ? r.user.email : ''}">email@example.com</small>
                             </td>
                             <td>
-                                <span class="badge bg-info-subtle text-info-emphasis" th:if="${r.returnType == 'RETURN_SIZE'}">Đổi Size</span>
-                                <span class="badge bg-primary-subtle text-primary" th:if="${r.returnType == 'RETURN_COLOR'}">Đổi Màu</span>
-                                <span class="badge bg-warning-subtle text-warning-emphasis" th:if="${r.returnType == 'REFUND_COOLCASH'}">Hoàn ví CoolCash</span>
-                                <span class="badge bg-secondary-subtle text-dark" th:unless="${r.returnType == 'RETURN_SIZE' or r.returnType == 'RETURN_COLOR' or r.returnType == 'REFUND_COOLCASH'}" th:text="${r.returnType}">Khác</span>
+                                <span class="badge bg-info-subtle text-info-emphasis" th:if="${r.returnType == 'RETURN_SIZE'}"><i class="bi bi-arrows-expand me-1"></i>Đổi Size</span>
+                                <span class="badge bg-primary-subtle text-primary" th:if="${r.returnType == 'RETURN_COLOR'}"><i class="bi bi-palette me-1"></i>Đổi Màu</span>
+                                <span class="badge bg-warning-subtle text-warning-emphasis" th:if="${r.returnType == 'REFUND_COOLCASH' or r.returnType == 'RETURN_REFUND'}"><i class="bi bi-cash-coin me-1"></i>Trả hàng - Hoàn tiền</span>
+                                <span class="badge bg-secondary-subtle text-dark" th:unless="${r.returnType == 'RETURN_SIZE' or r.returnType == 'RETURN_COLOR' or r.returnType == 'REFUND_COOLCASH' or r.returnType == 'RETURN_REFUND'}" th:text="${r.returnType}">Khác</span>
+                                
+                                <div th:if="${r.targetVariant != null}" class="mt-1 small text-primary">
+                                    <span>Đổi sang: <code th:text="${r.targetVariant.sku}">SKU-NEW</code></span>
+                                </div>
                             </td>
-                            <td style="max-width: 250px;">
-                                <small th:text="${r.reason}">Không vừa size</small>
+                            <td style="max-width: 220px;">
+                                <div class="small fw-semibold mb-1" th:if="${r.orderItem != null}" th:text="${r.orderItem.productNameSnapshot} + ' (SL: ' + ${r.quantity} + ')'">Sản phẩm</div>
+                                <small class="text-muted text-truncate d-block" th:text="${r.reason}">Lý do</small>
+                                <a th:if="${r.evidenceImages != null and !r.evidenceImages.isEmpty()}" th:href="${r.evidenceImages}" target="_blank" class="small text-decoration-none">
+                                    <i class="bi bi-image me-1"></i>Xem ảnh chụp
+                                </a>
                             </td>
                             <td>
-                                <strong th:text="${#numbers.formatDecimal(r.refundAmount != null ? r.refundAmount : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">249,000đ</strong>
+                                <strong class="text-danger fs-6 d-block" th:text="${#numbers.formatDecimal(r.refundAmount != null ? r.refundAmount : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">0đ</strong>
+                                
+                                <!-- Phương thức & Trạng thái hoàn tiền chi tiết -->
+                                <div class="small mt-1">
+                                    <span class="badge bg-light text-dark border" th:if="${r.refundMethod != null}" th:text="${r.refundMethod}">COOLCASH</span>
+                                    <span class="badge bg-warning text-dark" th:if="${r.refundStatus == 'REFUND_PENDING'}">Chờ chuyển tiền</span>
+                                    <span class="badge bg-info text-dark" th:if="${r.refundStatus == 'REFUND_PROCESSING'}">Đang chuyển tiền</span>
+                                    <span class="badge bg-danger" th:if="${r.refundStatus == 'REFUND_FAILED'}">Hoàn tiền lỗi</span>
+                                    <span class="badge bg-success" th:if="${r.refundStatus == 'REFUNDED' or (r.refundStatus == 'COMPLETED' and r.refundAmount > 0)}">Đã hoàn tiền</span>
+                                    <span class="badge bg-secondary" th:if="${r.refundStatus == 'NONE' or r.refundStatus == null and (r.refundAmount == null or r.refundAmount == 0)}">Không hoàn tiền</span>
+                                    
+                                    <div th:if="${r.refundReference != null}" class="text-muted" style="font-size: 0.75rem;">
+                                        <span>Mã GD: <strong class="text-dark" th:text="${r.refundReference}"></strong></span>
+                                    </div>
+                                </div>
                             </td>
                             <td>
                                 <span class="badge bg-warning text-dark" th:if="${r.status == 'PENDING' or r.status == 'REQUESTED'}">Chờ duyệt (REQUESTED)</span>
                                 <span class="badge bg-info text-dark" th:if="${r.status == 'APPROVED'}">Đã duyệt (APPROVED)</span>
                                 <span class="badge bg-primary" th:if="${r.status == 'PROCESSING'}">Đang kiểm định (PROCESSING)</span>
-                                <span class="badge bg-success" th:if="${r.status == 'COMPLETED'}">Đã hoàn tất (COMPLETED)</span>
+                                <span class="badge bg-success" th:if="${r.status == 'COMPLETED'}">Hoàn tất (COMPLETED)</span>
                                 <span class="badge bg-danger" th:if="${r.status == 'REJECTED'}">Từ chối (REJECTED)</span>
                             </td>
-                            <td>
-                                <!-- REQUESTED / PENDING: APPROVE hoặc REJECT -->
-                                <div th:if="${r.status == 'PENDING' or r.status == 'REQUESTED'}" class="d-flex gap-1">
-                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
+                            <td class="text-end pe-3">
+                                <!-- 1. REQUESTED / PENDING: APPROVE hoặc REJECT (Cả STAFF & ADMIN) -->
+                                <div th:if="${r.status == 'PENDING' or r.status == 'REQUESTED'}" class="btn-group btn-group-sm">
+                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
                                         <input type="hidden" name="status" value="APPROVE">
                                         <button type="submit" class="btn btn-sm btn-primary rounded-pill px-2" title="Phê duyệt yêu cầu">
                                             <i class="bi bi-check-circle me-1"></i>Duyệt
                                         </button>
                                     </form>
-                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
+                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline ms-1">
                                         <input type="hidden" name="status" value="REJECT">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Từ chối">
-                                            <i class="bi bi-x-circle"></i>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Từ chối yêu cầu">
+                                            <i class="bi bi-x-circle me-1"></i>Từ chối
                                         </button>
                                     </form>
                                 </div>
 
-                                <!-- APPROVED: PROCESS hoặc REJECT -->
-                                <div th:if="${r.status == 'APPROVED'}" class="d-flex gap-1">
-                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
+                                <!-- 2. APPROVED: PROCESS (Tiếp nhận hàng về kho) hoặc REJECT (Cả STAFF & ADMIN) -->
+                                <div th:if="${r.status == 'APPROVED'}" class="btn-group btn-group-sm">
+                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
                                         <input type="hidden" name="status" value="PROCESS">
-                                        <button type="submit" class="btn btn-sm btn-warning text-dark rounded-pill px-2" title="Tiếp nhận kiện hàng">
+                                        <button type="submit" class="btn btn-sm btn-warning text-dark rounded-pill px-2" title="Tiếp nhận kiện hàng về kho kiểm định">
                                             <i class="bi bi-box-arrow-in-down me-1"></i>Tiếp nhận
                                         </button>
                                     </form>
-                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
+                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline ms-1">
                                         <input type="hidden" name="status" value="REJECT">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Từ chối">
-                                            <i class="bi bi-x-circle"></i>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Từ chối yêu cầu">
+                                            <i class="bi bi-x-circle me-1"></i>Từ chối
                                         </button>
                                     </form>
                                 </div>
 
-                                <!-- PROCESSING: COMPLETE hoặc REJECT -->
-                                <div th:if="${r.status == 'PROCESSING'}" class="d-flex gap-1">
-                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
-                                        <input type="hidden" name="status" value="COMPLETE">
-                                        <button type="submit" class="btn btn-sm btn-success rounded-pill px-2" title="Hoàn tất & Hoàn tiền / Xuất đổi">
-                                            <i class="bi bi-check-lg me-1"></i>Hoàn tất
-                                        </button>
-                                    </form>
-                                    <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
-                                        <input type="hidden" name="status" value="REJECT">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Không đạt kiểm định">
-                                            <i class="bi bi-x-circle"></i>
-                                        </button>
-                                    </form>
+                                <!-- 3. PROCESSING: Kiểm tra kiểm định và Hoàn tất / Hoàn tiền -->
+                                <div th:if="${r.status == 'PROCESSING'}">
+                                    <!-- Case 3A: Đổi hàng ngang giá (Không có tiền hoàn) -> Cả STAFF & ADMIN đều được hoàn tất -->
+                                    <div th:if="${r.refundAmount == null or r.refundAmount == 0}" class="btn-group btn-group-sm">
+                                        <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
+                                            <input type="hidden" name="status" value="COMPLETE">
+                                            <input type="hidden" name="refundMethod" value="NONE">
+                                            <button type="submit" class="btn btn-sm btn-success rounded-pill px-2" title="Hoàn tất đổi hàng và xuất biến thể mới">
+                                                <i class="bi bi-check-lg me-1"></i>Hoàn tất đổi
+                                            </button>
+                                        </form>
+                                        <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline ms-1">
+                                            <input type="hidden" name="status" value="REJECT">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Hàng không đạt chuẩn kiểm định">
+                                                <i class="bi bi-x-circle"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    <!-- Case 3B: Có hoàn tiền -> P0-2 & P0-3: Phân quyền tài chính CHỈ DÀNH CHO ADMIN -->
+                                    <div th:if="${r.refundAmount != null and r.refundAmount > 0}">
+                                        <div sec:authorize="hasRole('ADMIN')">
+                                            <!-- Chưa bắt đầu hoàn tiền (refundStatus == NONE hoặc null) -->
+                                            <div th:if="${r.refundStatus == 'NONE' or r.refundStatus == null}" class="d-flex flex-column align-items-end gap-1">
+                                                <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
+                                                    <input type="hidden" name="status" value="COMPLETE">
+                                                    <input type="hidden" name="refundMethod" value="COOLCASH">
+                                                    <button type="submit" class="btn btn-sm btn-success py-0 px-2 rounded-pill" style="font-size: 0.75rem;" title="Hoàn tiền ngay vào Ví CoolCash nội bộ">
+                                                        <i class="bi bi-wallet2 me-1"></i>Hoàn ví CoolCash
+                                                    </button>
+                                                </form>
+                                                <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
+                                                    <input type="hidden" name="status" value="COMPLETE">
+                                                    <input type="hidden" name="refundMethod" value="BANK">
+                                                    <button type="submit" class="btn btn-sm btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;" title="Chuyển sang trạng thái chờ hoàn tiền qua ngân hàng">
+                                                        <i class="bi bi-bank me-1"></i>Hoàn tiền Ngân hàng
+                                                    </button>
+                                                </form>
+                                            </div>
+
+                                            <!-- Đang ở trạng thái REFUND_PENDING -> Nút 'Bắt đầu xử lý' (START_REFUND) -->
+                                            <div th:if="${r.refundStatus == 'REFUND_PENDING'}">
+                                                <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
+                                                    <input type="hidden" name="status" value="START_REFUND">
+                                                    <button type="submit" class="btn btn-sm btn-warning text-dark py-0 px-2 rounded-pill" style="font-size: 0.75rem;" title="Tiếp nhận thực hiện lệnh chuyển khoản">
+                                                        <i class="bi bi-play-circle me-1"></i>Bắt đầu hoàn tiền
+                                                    </button>
+                                                </form>
+                                            </div>
+
+                                            <!-- Đang ở trạng thái REFUND_PROCESSING -> Nút 'Xác nhận' (CONFIRM_REFUND) & 'Thất bại' (MARK_REFUND_FAILED) -->
+                                            <div th:if="${r.refundStatus == 'REFUND_PROCESSING'}" class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-sm btn-success py-0 px-2 rounded-pill" style="font-size: 0.75rem;"
+                                                        data-bs-toggle="modal" th:data-bs-target="'#confirmReturnModal' + ${r.id}" title="Nhập mã giao dịch chuyển tiền thành công">
+                                                    <i class="bi bi-check2-circle me-1"></i>Xác nhận
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill" style="font-size: 0.75rem;"
+                                                        data-bs-toggle="modal" th:data-bs-target="'#failReturnModal' + ${r.id}" title="Đánh dấu hoàn tiền thất bại">
+                                                    <i class="bi bi-x-circle"></i>
+                                                </button>
+                                            </div>
+
+                                            <!-- Hoàn tiền thất bại (REFUND_FAILED) -> Nút 'Thử lại' (START_REFUND) -->
+                                            <div th:if="${r.refundStatus == 'REFUND_FAILED'}">
+                                                <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
+                                                    <input type="hidden" name="status" value="START_REFUND">
+                                                    <button type="submit" class="btn btn-sm btn-outline-warning text-dark py-0 px-2 rounded-pill" style="font-size: 0.75rem;" title="Thử lại chuyển tiền">
+                                                        <i class="bi bi-arrow-clockwise me-1"></i>Thử lại hoàn tiền
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+
+                                        <!-- STAFF View: Tuyệt đối không có nút hoàn tiền, chỉ hiển thị thông báo -->
+                                        <div sec:authorize="hasRole('STAFF') and !hasRole('ADMIN')">
+                                            <span class="badge bg-light text-muted border small" style="font-size: 0.7rem;">
+                                                <i class="bi bi-shield-lock me-1"></i>Chờ Admin duyệt hoàn tiền
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
 
+                                <!-- 4. COMPLETED hoặc REJECTED: Trạng thái khóa an toàn -->
                                 <div th:if="${r.status == 'COMPLETED' or r.status == 'REJECTED'}">
-                                    <span class="text-muted small"><i class="bi bi-lock me-1"></i>Đã đóng</span>
+                                    <span class="badge bg-secondary small" style="font-size: 0.75rem;"><i class="bi bi-lock me-1"></i>Đã đóng</span>
                                 </div>
+
+                                <!-- MODAL: Xác nhận hoàn tiền ngoài (CONFIRM_REFUND) -->
+                                <div sec:authorize="hasRole('ADMIN')" th:if="${r.refundStatus == 'REFUND_PROCESSING'}" class="modal fade" th:id="'confirmReturnModal' + ${r.id}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-dialog-centered">
+                                        <div class="modal-content text-start">
+                                            <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
+                                                <input type="hidden" name="status" value="CONFIRM_REFUND">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title fw-bold text-success"><i class="bi bi-check2-circle me-2"></i>Xác Nhận Hoàn Tiền Thành Công</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <p class="small text-muted mb-3">Vui lòng cung cấp mã giao dịch ngân hàng thực tế để hoàn tất đối soát và quyết toán kế toán cho yêu cầu <strong th:text="'#RET-' + ${r.id}"></strong>.</p>
+                                                    
+                                                    <div class="mb-3">
+                                                        <label class="form-label fw-bold small">Mã tham chiếu ngân hàng (Refund Reference) <span class="text-danger">*</span></label>
+                                                        <input type="text" name="refundReference" class="form-control" placeholder="Ví dụ: FT260100123 hoặc VCB-RET-999" required>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Hủy</button>
+                                                    <button type="submit" class="btn btn-success btn-sm rounded-pill fw-bold"><i class="bi bi-check-lg me-1"></i>Xác Nhận Hoàn Tất</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- MODAL: Đánh dấu hoàn tiền thất bại (MARK_REFUND_FAILED) -->
+                                <div sec:authorize="hasRole('ADMIN')" th:if="${r.refundStatus == 'REFUND_PROCESSING'}" class="modal fade" th:id="'failReturnModal' + ${r.id}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-dialog-centered">
+                                        <div class="modal-content text-start">
+                                            <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
+                                                <input type="hidden" name="status" value="MARK_REFUND_FAILED">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Đánh Dấu Hoàn Tiền Thất Bại</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <p class="small text-muted mb-3">Yêu cầu đổi trả sẽ chuyển sang trạng thái <strong>REFUND_FAILED</strong>. Tài khoản khách hàng và điểm thưởng chưa bị trừ kế toán cho đến khi hoàn tiền thành công thực tế.</p>
+                                                    
+                                                    <div class="mb-3">
+                                                        <label class="form-label fw-bold small">Lý do thất bại <span class="text-danger">*</span></label>
+                                                        <textarea name="rejectReason" class="form-control" rows="3" placeholder="Ví dụ: Số tài khoản ngân hàng của khách không đúng hoặc bị từ chối..." required></textarea>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Đóng</button>
+                                                    <button type="submit" class="btn btn-danger btn-sm rounded-pill fw-bold"><i class="bi bi-x-circle me-1"></i>Xác Nhận Thất Bại</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+
                             </td>
                         </tr>
                     </tbody>
@@ -160,5 +308,13 @@
         </div>
     </div>
 </div>
+
+<script th:if="${successMessage}">
+    Swal.fire({ icon: 'success', title: 'Thành công!', text: '[[${successMessage}]]', confirmButtonColor: '#2f5acf', timer: 2500 });
+</script>
+<script th:if="${errorMessage}">
+    Swal.fire({ icon: 'error', title: 'Lỗi xử lý', text: '[[${errorMessage}]]', confirmButtonColor: '#dc3545' });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

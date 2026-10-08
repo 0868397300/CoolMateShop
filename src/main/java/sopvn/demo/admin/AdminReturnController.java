@@ -1,5 +1,6 @@
 package sopvn.demo.admin;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
@@ -33,7 +34,7 @@ public class AdminReturnController {
 
     @GetMapping
     public String listReturns(Model model) {
-        List<OrderReturn> returns = orderReturnRepository.findAll();
+        List<OrderReturn> returns = orderReturnRepository.findAllByOrderByCreatedAtDesc();
         model.addAttribute("returns", returns);
         return "admin/return-list";
     }
@@ -42,6 +43,7 @@ public class AdminReturnController {
     public String updateStatus(@PathVariable("id") Long id,
                                @RequestParam("status") String status,
                                @RequestParam(value = "refundMethod", defaultValue = "COOLCASH") String refundMethod,
+                               @RequestParam(value = "refundReference", required = false) String refundReference,
                                @RequestParam(value = "rejectReason", required = false) String rejectReason,
                                @AuthenticationPrincipal UserDetails userDetails,
                                RedirectAttributes redirectAttributes) {
@@ -52,7 +54,17 @@ public class AdminReturnController {
             }
 
             String action = (status != null) ? status.trim().toUpperCase() : "APPROVE";
-            returnService.processReturnApproval(id, action, refundMethod, rejectReason, staffUser);
+
+            // Role guard: các action tài chính chỉ dành cho ADMIN
+            boolean isFinancialAction = "CONFIRM_REFUND".equalsIgnoreCase(action)
+                    || "START_REFUND".equalsIgnoreCase(action)
+                    || "MARK_REFUND_FAILED".equalsIgnoreCase(action);
+
+            if (isFinancialAction && (staffUser == null || !staffUser.isAdmin())) {
+                throw new AccessDeniedException("Chỉ quản trị viên (ADMIN) mới có quyền xử lý thao tác hoàn tiền đổi trả.");
+            }
+
+            returnService.processReturnApproval(id, action, refundMethod, refundReference, rejectReason, staffUser);
 
             if ("REJECT".equalsIgnoreCase(action)) {
                 redirectAttributes.addFlashAttribute("successMessage", "Đã từ chối yêu cầu đổi/trả hàng #" + id);
@@ -60,9 +72,17 @@ public class AdminReturnController {
                 redirectAttributes.addFlashAttribute("successMessage", "Đã phê duyệt yêu cầu đổi/trả hàng #" + id + ", chờ khách gửi hàng.");
             } else if ("PROCESS".equalsIgnoreCase(action)) {
                 redirectAttributes.addFlashAttribute("successMessage", "Đã tiếp nhận hàng đổi trả #" + id + ", đang kiểm định.");
+            } else if ("START_REFUND".equalsIgnoreCase(action)) {
+                redirectAttributes.addFlashAttribute("successMessage", "Đã tiếp nhận xử lý hoàn tiền cho yêu cầu #" + id + ".");
+            } else if ("CONFIRM_REFUND".equalsIgnoreCase(action)) {
+                redirectAttributes.addFlashAttribute("successMessage", "Đã xác nhận hoàn tiền thành công cho yêu cầu #" + id + " (Mã tham chiếu: " + refundReference + ").");
+            } else if ("MARK_REFUND_FAILED".equalsIgnoreCase(action)) {
+                redirectAttributes.addFlashAttribute("errorMessage", "Đã đánh dấu hoàn tiền thất bại cho yêu cầu #" + id + ".");
             } else {
-                redirectAttributes.addFlashAttribute("successMessage", "Đã hoàn tất đổi/trả hàng #" + id + " thành công!");
+                redirectAttributes.addFlashAttribute("successMessage", "Đã hoàn tất xử lý yêu cầu đổi/trả hàng #" + id + " thành công!");
             }
+        } catch (AccessDeniedException ex) {
+            redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         } catch (CustomException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         } catch (Exception ex) {

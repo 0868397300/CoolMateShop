@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<html lang="vi" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,6 +15,7 @@
         .sidebar a:hover, .sidebar a.active { color: #fff; background: #1e293b; }
         .main-wrapper { margin-left: 260px; padding: 30px; }
         .card-custom { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; }
+        .badge-refunded { background-color: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
     </style>
 </head>
 <body>
@@ -41,8 +42,18 @@
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
                     <h3 class="fw-bold mb-1">Quản Lý Đơn Hàng &amp; Vận Chuyển</h3>
-                    <p class="text-muted small mb-0">Theo dõi toàn bộ vòng đời đơn hàng, xác nhận vận chuyển và tự động kết toán ví thưởng CoolCash khi hoàn tất.</p>
+                    <p class="text-muted small mb-0">Theo dõi toàn bộ vòng đời đơn hàng, xác nhận vận chuyển và kiểm soát quy trình hoàn tiền chính thức.</p>
                 </div>
+            </div>
+
+            <!-- Alerts -->
+            <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show rounded-3" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i><span th:text="${successMessage}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show rounded-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i><span th:text="${errorMessage}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
 
             <!-- Stats Bar -->
@@ -73,13 +84,13 @@
                 </div>
             </div>
 
-            <!-- Search & Filters -->
+            <!-- Filter Controls -->
             <div class="card-custom p-3 mb-4">
                 <form th:action="@{/admin/don-hang}" method="get" class="row g-2 align-items-center">
                     <div class="col-md-4">
                         <div class="input-group">
-                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
-                            <input type="text" name="keyword" class="form-control border-start-0" placeholder="Mã đơn, Tên người nhận, SĐT, Email..." th:value="${keyword}">
+                            <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                            <input type="text" name="keyword" class="form-control" placeholder="Mã đơn, SĐT, tên khách..." th:value="${keyword}">
                         </div>
                     </div>
                     <div class="col-md-2">
@@ -98,6 +109,8 @@
                             <option value="">-- Thanh toán --</option>
                             <option value="PAID" th:selected="${selectedPaymentStatus == 'PAID'}">Đã thanh toán (PAID)</option>
                             <option value="UNPAID" th:selected="${selectedPaymentStatus == 'UNPAID'}">Chưa thanh toán (UNPAID)</option>
+                            <option value="REFUND_PENDING" th:selected="${selectedPaymentStatus == 'REFUND_PENDING'}">Chờ hoàn tiền (REFUND_PENDING)</option>
+                            <option value="REFUNDED" th:selected="${selectedPaymentStatus == 'REFUNDED'}">Đã hoàn tiền (REFUNDED)</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -124,7 +137,7 @@
                                 <th>Khách Hàng / Nhận Hàng</th>
                                 <th>Ngày Đặt</th>
                                 <th>Tổng Tiền</th>
-                                <th>Thanh Toán</th>
+                                <th>Thanh Toán &amp; Hoàn Tiền</th>
                                 <th>Trạng Thái Đơn</th>
                                 <th class="text-end pe-3">Thao Tác</th>
                             </tr>
@@ -150,13 +163,36 @@
                                     <strong class="text-dark" th:text="${#numbers.formatDecimal(order.finalAmount != null ? order.finalAmount : 0, 0, 'COMMA', 0, 'POINT')} + 'đ'">0đ</strong>
                                 </td>
                                 <td>
-                                    <span class="badge bg-light text-dark border me-1" th:text="${order.paymentMethod}">COD</span>
-                                    <span th:if="${order.paymentStatus == 'PAID'}" class="badge bg-success bg-opacity-25 text-success">ĐÃ TRẢ</span>
-                                    <span th:unless="${order.paymentStatus == 'PAID'}" class="badge bg-danger bg-opacity-25 text-danger">CHƯA TRẢ</span>
+                                    <div>
+                                        <span class="badge bg-light text-dark border me-1" th:text="${order.paymentMethod}">COD</span>
+                                        <span th:if="${order.paymentStatus == 'PAID'}" class="badge bg-success bg-opacity-25 text-success">ĐÃ TRẢ</span>
+                                        <span th:if="${order.paymentStatus == 'REFUND_PENDING'}" class="badge bg-warning bg-opacity-25 text-warning">CHỜ HOÀN TIỀN</span>
+                                        <span th:if="${order.paymentStatus == 'REFUNDED'}" class="badge bg-success bg-opacity-25 text-success">ĐÃ HOÀN TIỀN</span>
+                                        <span th:if="${order.paymentStatus != 'PAID' and order.paymentStatus != 'REFUND_PENDING' and order.paymentStatus != 'REFUNDED'}" class="badge bg-danger bg-opacity-25 text-danger">CHƯA TRẢ</span>
+                                    </div>
+
+                                    <!-- Chi tiết trạng thái hoàn tiền (Refund Tracking) -->
+                                    <div th:if="${order.refundStatus != null}" class="mt-1 small">
+                                        <span class="badge bg-warning text-dark" th:if="${order.refundStatus == 'REFUND_PENDING'}"><i class="bi bi-clock-history me-1"></i>Chờ hoàn tiền</span>
+                                        <span class="badge bg-info text-dark" th:if="${order.refundStatus == 'REFUND_PROCESSING'}"><i class="bi bi-hourglass-split me-1"></i>Đang xử lý hoàn tiền</span>
+                                        <span class="badge bg-danger" th:if="${order.refundStatus == 'REFUND_FAILED'}"><i class="bi bi-x-circle me-1"></i>Hoàn tiền thất bại</span>
+                                        <span class="badge bg-success" th:if="${order.refundStatus == 'REFUNDED'}"><i class="bi bi-check-circle me-1"></i>Đã hoàn tiền</span>
+
+                                        <div th:if="${order.refundReference != null}" class="text-muted" style="font-size: 0.75rem;">
+                                            <span>Mã GD hoàn: <strong class="text-dark" th:text="${order.refundReference}"></strong></span>
+                                        </div>
+                                        <div th:if="${order.refundProcessedAt != null}" class="text-muted" style="font-size: 0.72rem;">
+                                            <span>Ngày xử lý: <span th:text="${order.refundProcessedAt}"></span></span>
+                                        </div>
+                                        <div th:if="${order.refundNote != null and !order.refundNote.isEmpty()}" class="text-muted fst-italic" style="font-size: 0.72rem;">
+                                            <span>Ghi chú: <span th:text="${order.refundNote}"></span></span>
+                                        </div>
+                                    </div>
                                 </td>
                                 <td>
                                     <form th:action="@{'/admin/don-hang/' + ${order.id} + '/status'}" method="post">
-                                        <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                                        <select name="status" class="form-select form-select-sm" onchange="this.form.submit()"
+                                                th:disabled="${order.orderStatus == 'CANCELLED' or order.orderStatus == 'COMPLETED'}">
                                             <option value="PENDING" th:selected="${order.orderStatus == 'PENDING'}">Chờ xử lý (PENDING)</option>
                                             <option value="CONFIRMED" th:selected="${order.orderStatus == 'CONFIRMED'}">Đã xác nhận (CONFIRMED)</option>
                                             <option value="SHIPPING" th:selected="${order.orderStatus == 'SHIPPING'}">Đang giao (SHIPPING)</option>
@@ -167,15 +203,60 @@
                                     </form>
                                 </td>
                                 <td class="text-end pe-3">
-                                    <div class="btn-group btn-group-sm">
-                                        <!-- In phiếu -->
-                                        <a th:href="@{'/admin/don-hang/' + ${order.id} + '/in'}" target="_blank" class="btn btn-outline-secondary" title="In phiếu đóng gói & giao hàng">
-                                            <i class="bi bi-printer"></i>
-                                        </a>
-                                        <!-- Xem chi tiết modal -->
-                                        <button class="btn btn-outline-primary" data-bs-toggle="modal" th:data-bs-target="'#orderModal' + ${order.id}" title="Xem chi tiết sản phẩm">
-                                            <i class="bi bi-eye"></i>
-                                        </button>
+                                    <div class="d-flex flex-column align-items-end gap-1">
+                                        <div class="btn-group btn-group-sm">
+                                            <!-- In phiếu -->
+                                            <a th:href="@{'/admin/don-hang/' + ${order.orderCode} + '/in-van-don'}" target="_blank" class="btn btn-outline-secondary" title="In vận đơn & giao hàng">
+                                                <i class="bi bi-printer"></i>
+                                            </a>
+                                            <!-- Xem chi tiết modal -->
+                                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" th:data-bs-target="'#orderModal' + ${order.id}" title="Xem chi tiết sản phẩm">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+
+                                        <!-- P0-1: ADMIN Financial Refund Controls (STAFF tuyệt đối không nhìn thấy) -->
+                                        <div sec:authorize="hasRole('ADMIN')" th:if="${order.refundStatus != null}">
+                                            <!-- 1. REFUND_PENDING -> Nút 'Bắt đầu xử lý hoàn tiền' -->
+                                            <form th:if="${order.refundStatus == 'REFUND_PENDING'}" th:action="@{'/admin/don-hang/' + ${order.id} + '/refund-action'}" method="post">
+                                                <input type="hidden" name="action" value="START_PROCESSING">
+                                                <button type="submit" class="btn btn-sm btn-outline-warning text-dark py-0 px-2" style="font-size: 0.75rem;" title="Bắt đầu tiếp nhận xử lý hoàn tiền">
+                                                    <i class="bi bi-play-circle me-1"></i>Bắt đầu xử lý
+                                                </button>
+                                            </form>
+
+                                            <!-- 2. REFUND_PROCESSING -> Nút 'Xác nhận hoàn tiền' & 'Đánh dấu thất bại' -->
+                                            <div th:if="${order.refundStatus == 'REFUND_PROCESSING'}" class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-sm btn-success py-0 px-2" style="font-size: 0.75rem;"
+                                                        data-bs-toggle="modal" th:data-bs-target="'#confirmRefundModal' + ${order.id}" title="Xác nhận đã chuyển tiền thành công">
+                                                    <i class="bi bi-check2-circle me-1"></i>Xác nhận
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size: 0.75rem;"
+                                                        data-bs-toggle="modal" th:data-bs-target="'#failRefundModal' + ${order.id}" title="Đánh dấu hoàn tiền thất bại">
+                                                    <i class="bi bi-x-circle"></i>
+                                                </button>
+                                            </div>
+
+                                            <!-- 3. REFUND_FAILED -> Nút 'Thử lại xử lý' -->
+                                            <form th:if="${order.refundStatus == 'REFUND_FAILED'}" th:action="@{'/admin/don-hang/' + ${order.id} + '/refund-action'}" method="post">
+                                                <input type="hidden" name="action" value="START_PROCESSING">
+                                                <button type="submit" class="btn btn-sm btn-warning text-dark py-0 px-2" style="font-size: 0.75rem;" title="Thử lại quy trình hoàn tiền">
+                                                    <i class="bi bi-arrow-clockwise me-1"></i>Thử lại xử lý
+                                                </button>
+                                            </form>
+
+                                            <!-- 4. REFUNDED -> Trạng thái khóa an toàn -->
+                                            <span th:if="${order.refundStatus == 'REFUNDED'}" class="badge bg-secondary" style="font-size: 0.7rem;">
+                                                <i class="bi bi-lock me-1"></i>Đã hoàn tất
+                                            </span>
+                                        </div>
+
+                                        <!-- STAFF View: Chỉ nhìn thấy thông báo khóa khi chưa REFUNDED -->
+                                        <div sec:authorize="hasRole('STAFF') and !hasRole('ADMIN')" th:if="${order.refundStatus != null and order.refundStatus != 'REFUNDED'}">
+                                            <span class="badge bg-light text-muted border" style="font-size: 0.7rem;">
+                                                <i class="bi bi-shield-lock me-1"></i>Admin xử lý hoàn tiền
+                                            </span>
+                                        </div>
                                     </div>
 
                                     <!-- Detail Modal -->
@@ -187,8 +268,8 @@
                                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                                 </div>
                                                 <div class="modal-body">
-                                                    <div class="table-responsive">
-                                                        <table class="table table-bordered align-middle">
+                                                    <div class="table-responsive mb-3">
+                                                        <table class="table table-bordered align-middle mb-0">
                                                             <thead class="table-light small">
                                                                 <tr>
                                                                     <th>Sản Phẩm</th>
@@ -211,14 +292,101 @@
                                                             </tbody>
                                                         </table>
                                                     </div>
+
+                                                    <!-- Thông tin hoàn tiền chi tiết trong Modal -->
+                                                    <div th:if="${order.refundStatus != null}" class="p-3 bg-light rounded-3 border">
+                                                        <h6 class="fw-bold mb-2 text-dark"><i class="bi bi-wallet2 text-primary me-2"></i>Thông Tin Hoàn Tiền Đơn Hàng</h6>
+                                                        <div class="row g-2 small">
+                                                            <div class="col-md-6">
+                                                                <span class="text-muted">Trạng thái hoàn:</span> 
+                                                                <strong th:text="${order.refundStatus}"></strong>
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <span class="text-muted">Số tiền hoàn:</span> 
+                                                                <strong class="text-danger" th:text="${#numbers.formatDecimal(order.refundAmount != null ? order.refundAmount : order.finalAmount, 0, 'COMMA', 0, 'POINT')} + 'đ'"></strong>
+                                                            </div>
+                                                            <div class="col-md-6" th:if="${order.refundReference != null}">
+                                                                <span class="text-muted">Mã tham chiếu GD:</span> 
+                                                                <code th:text="${order.refundReference}"></code>
+                                                            </div>
+                                                            <div class="col-md-6" th:if="${order.refundProcessedAt != null}">
+                                                                <span class="text-muted">Thời gian hoàn:</span> 
+                                                                <span th:text="${order.refundProcessedAt}"></span>
+                                                            </div>
+                                                            <div class="col-12" th:if="${order.refundNote != null and !order.refundNote.isEmpty()}">
+                                                                <span class="text-muted">Ghi chú:</span> 
+                                                                <span class="fst-italic" th:text="${order.refundNote}"></span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                                 <div class="modal-footer">
-                                                    <a th:href="@{'/admin/don-hang/' + ${order.id} + '/in'}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill"><i class="bi bi-printer me-1"></i>In Phiếu</a>
+                                                    <a th:href="@{'/admin/don-hang/' + ${order.orderCode} + '/in-van-don'}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill"><i class="bi bi-printer me-1"></i>In Phiếu</a>
                                                     <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Đóng</button>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
+
+                                    <!-- ADMIN MODAL: Confirm Refund (CONFIRM_SUCCESS) -->
+                                    <div sec:authorize="hasRole('ADMIN')" th:if="${order.refundStatus == 'REFUND_PROCESSING'}" class="modal fade" th:id="'confirmRefundModal' + ${order.id}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog modal-dialog-centered">
+                                            <div class="modal-content text-start">
+                                                <form th:action="@{'/admin/don-hang/' + ${order.id} + '/refund-action'}" method="post">
+                                                    <input type="hidden" name="action" value="CONFIRM_SUCCESS">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title fw-bold text-success"><i class="bi bi-check2-circle me-2"></i>Xác Nhận Hoàn Tiền Thành Công</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <p class="small text-muted mb-3">Vui lòng cung cấp mã giao dịch ngân hàng / cổng thanh toán thực tế để xác nhận hoàn tất hoàn tiền cho đơn hàng <strong th:text="'#' + ${order.orderCode}"></strong>.</p>
+                                                        
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold small">Mã tham chiếu hoàn tiền (Refund Reference) <span class="text-danger">*</span></label>
+                                                            <input type="text" name="refundReference" class="form-control" placeholder="Ví dụ: VNPAY-REF-123456 hoặc FT260100123" required>
+                                                        </div>
+
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold small">Ghi chú đối soát (Tùy chọn)</label>
+                                                            <textarea name="note" class="form-control" rows="2" placeholder="Ví dụ: Đã chuyển khoản qua Vietcombank số TK 123456..."></textarea>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Hủy</button>
+                                                        <button type="submit" class="btn btn-success btn-sm rounded-pill fw-bold"><i class="bi bi-check-lg me-1"></i>Xác Nhận Hoàn Tiền</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- ADMIN MODAL: Mark Refund Failed (MARK_FAILED) -->
+                                    <div sec:authorize="hasRole('ADMIN')" th:if="${order.refundStatus == 'REFUND_PROCESSING'}" class="modal fade" th:id="'failRefundModal' + ${order.id}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog modal-dialog-centered">
+                                            <div class="modal-content text-start">
+                                                <form th:action="@{'/admin/don-hang/' + ${order.id} + '/refund-action'}" method="post">
+                                                    <input type="hidden" name="action" value="MARK_FAILED">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Đánh Dấu Hoàn Tiền Thất Bại</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <p class="small text-muted mb-3">Đơn hàng sẽ chuyển sang trạng thái <strong>REFUND_FAILED</strong> để Admin có thể thử lại sau khi đối soát xong nguyên nhân.</p>
+                                                        
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold small">Lý do thất bại <span class="text-danger">*</span></label>
+                                                            <textarea name="note" class="form-control" rows="3" placeholder="Ví dụ: Tài khoản khách hàng bị khóa, hoặc cổng VNPAY báo lỗi từ chối..." required></textarea>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Đóng</button>
+                                                        <button type="submit" class="btn btn-danger btn-sm rounded-pill fw-bold"><i class="bi bi-x-circle me-1"></i>Xác Nhận Thất Bại</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                 </td>
                             </tr>
                         </tbody>
@@ -230,6 +398,9 @@
 
     <script th:if="${successMessage}">
         Swal.fire({ icon: 'success', title: 'Thành công!', text: '[[${successMessage}]]', confirmButtonColor: '#2f5acf', timer: 2500 });
+    </script>
+    <script th:if="${errorMessage}">
+        Swal.fire({ icon: 'error', title: 'Lỗi xử lý', text: '[[${errorMessage}]]', confirmButtonColor: '#dc3545' });
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

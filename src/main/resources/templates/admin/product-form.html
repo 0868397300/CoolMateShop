@@ -170,11 +170,62 @@
                                         <span class="badge bg-secondary-subtle text-secondary" th:unless="${v.isActive}">Khóa</span>
                                     </td>
                                     <td class="text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" th:data-bs-target="'#editVariantModal' + ${v.id}" title="Sửa biến thể">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
                                         <form th:action="@{'/admin/san-pham/' + ${product.id} + '/bien-the/' + ${v.id} + '/xoa'}" method="post" class="d-inline">
                                             <button type="submit" class="btn btn-sm btn-outline-danger" th:if="${v.isActive}" title="Vô hiệu hóa biến thể">
                                                 <i class="bi bi-x-circle"></i>
                                             </button>
                                         </form>
+
+                                        <!-- Modal Sửa Biến thể -->
+                                        <div class="modal fade" th:id="'editVariantModal' + ${v.id}" tabindex="-1" aria-hidden="true">
+                                            <div class="modal-dialog modal-dialog-centered">
+                                                <div class="modal-content">
+                                                    <form th:action="@{'/admin/san-pham/' + ${product.id} + '/bien-the/' + ${v.id} + '/sua'}" method="post">
+                                                        <div class="modal-header">
+                                                            <h5 class="modal-title fs-6 fw-bold">Sửa Biến Thể SKU: <span th:text="${v.sku}"></span></h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                        </div>
+                                                        <div class="modal-body text-start">
+                                                            <div class="mb-3">
+                                                                <label class="form-label small fw-semibold">Mã SKU</label>
+                                                                <input type="text" name="sku" class="form-control form-control-sm" th:value="${v.sku}" required />
+                                                            </div>
+                                                            <div class="row g-2 mb-3">
+                                                                <div class="col-6">
+                                                                    <label class="form-label small fw-semibold">Giá niêm yết</label>
+                                                                    <input type="number" name="originalPrice" class="form-control form-control-sm" th:value="${v.originalPrice}" min="0" step="1000" />
+                                                                </div>
+                                                                <div class="col-6">
+                                                                    <label class="form-label small fw-semibold">Giá bán thực tế</label>
+                                                                    <input type="number" name="salePrice" class="form-control form-control-sm" th:value="${v.salePrice}" min="0" step="1000" required />
+                                                                </div>
+                                                            </div>
+                                                            <div class="row g-2 mb-3">
+                                                                <div class="col-6">
+                                                                    <label class="form-label small fw-semibold">Tồn kho hiện tại</label>
+                                                                    <input type="number" name="stockQuantity" class="form-control form-control-sm" th:value="${v.stockQuantity}" min="0" required />
+                                                                    <div class="form-text small text-muted">Hệ thống sẽ ghi log kiểm toán tồn kho.</div>
+                                                                </div>
+                                                                <div class="col-6">
+                                                                    <label class="form-label small fw-semibold">Trạng thái</label>
+                                                                    <select name="isActive" class="form-select form-select-sm">
+                                                                        <option value="true" th:selected="${v.isActive}">Hoạt động</option>
+                                                                        <option value="false" th:selected="${!v.isActive}">Khóa / Tạm dừng</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                                                            <button type="submit" class="btn btn-sm btn-primary">Lưu thay đổi</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </td>
                                 </tr>
                                 <tr th:if="${variants.isEmpty()}">

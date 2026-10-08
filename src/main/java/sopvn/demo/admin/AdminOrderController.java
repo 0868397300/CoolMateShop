@@ -118,6 +118,13 @@ public class AdminOrderController {
         return "admin/order-print";
     }
 
+    @GetMapping("/{orderId}/in")
+    public String printOrderById(@PathVariable("orderId") Long orderId, Model model) {
+        Order order = orderRepository.findById(orderId).orElse(null);
+        model.addAttribute("order", order);
+        return "admin/order-print";
+    }
+
     /**
      * P0-2: Refund Authorization - Bắt buộc quyền ADMIN (STAFF bị từ chối 403 AccessDeniedException).
      */
