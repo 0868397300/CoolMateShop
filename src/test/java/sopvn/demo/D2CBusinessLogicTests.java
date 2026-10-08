@@ -1515,6 +1515,15 @@ public class D2CBusinessLogicTests {
         assertThrows(ClassNotFoundException.class, () -> {
             Class.forName("sopvn.demo.wallet.CoolCashController");
         });
+
+        // Verify auth/ForgotPasswordController is absent
+        assertThrows(ClassNotFoundException.class, () -> {
+            Class.forName("sopvn.demo.auth.ForgotPasswordController");
+        });
+        assertDoesNotThrow(() -> {
+            Class<?> forgotCtrl = Class.forName("sopvn.demo.controller.ForgotPasswordController");
+            assertNotNull(forgotCtrl);
+        });
     }
 
     // =========================================================================
