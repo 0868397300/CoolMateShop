@@ -23,6 +23,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import sopvn.demo.cart.CartService;
 import sopvn.demo.entity.Role;
 import sopvn.demo.entity.User;
@@ -176,12 +177,15 @@ public class SecurityConfig {
                                             SecurityContextRepository securityContextRepository,
                                             AuthenticationSuccessHandler customSuccessHandler) throws Exception {
         http
-            // Bật CSRF cho browser forms, chỉ exempt webhook external callbacks và REST api
-            .csrf(csrf -> csrf.ignoringRequestMatchers(
-                "/thanh-toan/vnpay-ipn/**",
-                "/thanh-toan/vnpay-return/**",
-                "/api/**"
-            ))
+            // P0-7: Bật CSRF bảo vệ toàn bộ forms và state-changing browser requests (/api/** vẫn được CSRF bảo vệ)
+            // Chỉ miễn trừ các external webhook callbacks từ VNPAY
+            .csrf(csrf -> csrf
+                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .ignoringRequestMatchers(
+                    "/thanh-toan/vnpay-ipn/**",
+                    "/thanh-toan/vnpay-return/**"
+                )
+            )
             .authenticationProvider(authenticationProvider)
             .securityContext(sc -> sc.securityContextRepository(securityContextRepository))
             .exceptionHandling(ex -> ex.authenticationEntryPoint(customAuthenticationEntryPoint()))
@@ -193,11 +197,17 @@ public class SecurityConfig {
                     "/chinh-sach-doi-tra/**", "/doi-tra/chinh-sach/**",
                     "/tra-cuu-don-hang/**",
                     "/api/size-advisor/**",
+                    "/api/shipping/**",
                     "/thanh-toan/vnpay-return/**", "/thanh-toan/vnpay-ipn/**",
                     "/gio-hang/**", "/cart/**", "/api/cart/**",
                     "/auth/**", "/login", "/register",
                     "/css/**", "/js/**", "/images/**", "/webjars/**", "/favicon.ico"
                 ).permitAll()
+
+                // P0-2: Hoàn tiền đơn hàng CHỈ DÀNH CHO ADMIN (Tuyệt đối cấm STAFF thao tác tài chính)
+                .requestMatchers(
+                    "/admin/don-hang/*/refund-action"
+                ).hasRole("ADMIN")
 
                 // Phân quyền ADMIN ONLY: Báo cáo tài chính, quản lý sản phẩm, danh mục, khách hàng & ví, khuyến mãi, duyệt nhập kho
                 .requestMatchers(
@@ -228,7 +238,8 @@ public class SecurityConfig {
                     "/doi-tra/yeu-cau/**",
                     "/danh-gia/gui/**",
                     "/wishlist/**",
-                    "/api/wishlist/**"
+                    "/api/wishlist/**",
+                    "/api/address/**"
                 ).authenticated()
 
                 .anyRequest().authenticated()
@@ -246,7 +257,7 @@ public class SecurityConfig {
                 .logoutUrl("/auth/logout")
                 .logoutSuccessUrl("/auth/login?logout=true")
                 .invalidateHttpSession(true)
-                .deleteCookies("JSESSIONID", "COOLMATE_GUEST_CART")
+                .deleteCookies("JSESSIONID", "COOLMATE_GUEST_CART", "XSRF-TOKEN")
                 .permitAll()
             );
 

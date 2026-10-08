@@ -1,13 +1,19 @@
-USE [master]
+USE [master];
 GO
-/****** Object:  Database [CoolMate_DB]    Script Date: 10/3/2026 10:15:00 PM ******/
-CREATE DATABASE [CoolMate_DB]
- CONTAINMENT = NONE
- ON  PRIMARY 
-( NAME = N'CoolMate_DB', FILENAME = N'C:\Program Files\Microsoft SQL Server\MSSQL16.MSSQLSERVER\MSSQL\DATA\CoolMate_DB.mdf' , SIZE = 8192KB , MAXSIZE = UNLIMITED, FILEGROWTH = 65536KB )
- LOG ON 
-( NAME = N'CoolMate_DB_log', FILENAME = N'C:\Program Files\Microsoft SQL Server\MSSQL16.MSSQLSERVER\MSSQL\DATA\CoolMate_DB_log.ldf' , SIZE = 8192KB , MAXSIZE = 2048GB , FILEGROWTH = 65536KB )
- WITH CATALOG_COLLATION = DATABASE_DEFAULT, LEDGER = OFF
+
+-- Tự động ngắt kết nối và xóa database cũ nếu đã tồn tại
+IF DB_ID(N'CoolMate_DB') IS NOT NULL
+BEGIN
+    ALTER DATABASE [CoolMate_DB] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE [CoolMate_DB];
+END
+GO
+
+-- Tạo mới database CoolMate_DB theo đường dẫn mặc định của hệ thống
+CREATE DATABASE [CoolMate_DB];
+GO
+
+USE [CoolMate_DB];
 GO
 ALTER DATABASE [CoolMate_DB] SET COMPATIBILITY_LEVEL = 160
 GO
@@ -320,6 +326,18 @@ CREATE TABLE [dbo].[Orders](
 	[vnpay_transaction_no] [varchar](100) NULL,
 	[order_status] [varchar](30) NOT NULL,
 	[delivered_at] [datetime2](7) NULL,
+	[cancelled_at] [datetime2](7) NULL,
+	[cancelled_reason] [nvarchar](500) NULL,
+	[payment_response_code] [varchar](50) NULL,
+	[payment_bank_code] [varchar](50) NULL,
+	[payment_failure_reason] [nvarchar](500) NULL,
+	[vnpay_txn_ref] [varchar](100) NULL,
+	[payment_paid_at] [datetime2](7) NULL,
+	[refund_status] [nvarchar](30) NULL,
+	[refund_reference] [nvarchar](100) NULL,
+	[refund_amount] [decimal](18, 2) NULL,
+	[refund_processed_at] [datetime2](7) NULL,
+	[refund_note] [nvarchar](500) NULL,
 	[created_at] [datetime2](7) NOT NULL,
 	[updated_at] [datetime2](7) NOT NULL,
 PRIMARY KEY CLUSTERED 
@@ -1166,6 +1184,43 @@ BEGIN
 END
 GO
 
+
+-- 2B. Orders: Refund Tracking Columns
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Orders]') AND name = 'refund_status')
+BEGIN
+    ALTER TABLE [dbo].[Orders] ADD [refund_status] NVARCHAR(30) NULL;
+    PRINT 'Added refund_status to Orders';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Orders]') AND name = 'refund_reference')
+BEGIN
+    ALTER TABLE [dbo].[Orders] ADD [refund_reference] NVARCHAR(100) NULL;
+    PRINT 'Added refund_reference to Orders';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Orders]') AND name = 'refund_amount')
+BEGIN
+    ALTER TABLE [dbo].[Orders] ADD [refund_amount] DECIMAL(18,2) NULL;
+    PRINT 'Added refund_amount to Orders';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Orders]') AND name = 'refund_processed_at')
+BEGIN
+    ALTER TABLE [dbo].[Orders] ADD [refund_processed_at] DATETIME2 NULL;
+    PRINT 'Added refund_processed_at to Orders';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Orders]') AND name = 'refund_note')
+BEGIN
+    ALTER TABLE [dbo].[Orders] ADD [refund_note] NVARCHAR(500) NULL;
+    PRINT 'Added refund_note to Orders';
+END
+GO
+
 -- 3. Inventory_Receipts: approval workflow and audit
 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Inventory_Receipts]') AND name = 'approved_by')
 BEGIN
@@ -1391,6 +1446,9 @@ IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Users_Coolc
 
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Users_TotalSpent')
     ALTER TABLE [dbo].[Users] ADD CONSTRAINT [CK_Users_TotalSpent] CHECK ([total_spent] >= 0);
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Orders_RefundAmount')
+    ALTER TABLE [dbo].[Orders] ADD CONSTRAINT [CK_Orders_RefundAmount] CHECK ([refund_amount] IS NULL OR [refund_amount] >= 0);
 
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_ProductVariants_Stock')
     ALTER TABLE [dbo].[Product_Variants] ADD CONSTRAINT [CK_ProductVariants_Stock] CHECK ([stock_quantity] >= 0);

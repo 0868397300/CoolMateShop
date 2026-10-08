@@ -10,13 +10,7 @@ import sopvn.demo.core.exception.CustomException;
 import sopvn.demo.core.service.NotificationService;
 import sopvn.demo.entity.*;
 import sopvn.demo.inventory.StockService;
-import sopvn.demo.repository.CoolCashTransactionRepository;
-import sopvn.demo.repository.OrderItemRepository;
-import sopvn.demo.repository.OrderRepository;
-import sopvn.demo.repository.ProductVariantRepository;
-import sopvn.demo.repository.PromotionRepository;
-import sopvn.demo.repository.PromotionUsageRepository;
-import sopvn.demo.repository.UserRepository;
+import sopvn.demo.repository.*;
 import sopvn.demo.wallet.CoolCashService;
 
 import java.math.BigDecimal;
@@ -86,6 +80,15 @@ public class OrderService {
         if (address == null || address.isBlank()) throw new CustomException("Địa chỉ giao hàng không được để trống.");
         if (cartItems == null || cartItems.isEmpty()) throw new CustomException("Giỏ hàng của bạn đang trống.");
 
+        // P0-3: Whitelist paymentMethod - Reject null/blank/unknown/CASH/BANK/ONLINE/abc. Chỉ cho phép COD hoặc VNPAY.
+        if (paymentMethod == null || paymentMethod.isBlank()) {
+            throw new CustomException("Phương thức thanh toán không được để trống. Chỉ chấp nhận COD hoặc VNPAY.");
+        }
+        String normalizedPaymentMethod = paymentMethod.trim().toUpperCase();
+        if (!"COD".equals(normalizedPaymentMethod) && !"VNPAY".equals(normalizedPaymentMethod)) {
+            throw new CustomException("Phương thức thanh toán '" + paymentMethod + "' không hợp lệ. Hệ thống chỉ hỗ trợ COD hoặc VNPAY.");
+        }
+
         // 1. Re-validate tồn kho và giá cả server-side
         List<CartItem> validItems = new ArrayList<>();
         for (CartItem ci : cartItems) {
@@ -102,7 +105,7 @@ public class OrderService {
         }
 
         BigDecimal requestedCoolCash = (useCoolCash && user != null) ? user.getCoolcashBalance() : BigDecimal.ZERO;
-        PricingSummaryDTO pricing = pricingService.calculatePricing(user, validItems, voucherCode, requestedCoolCash, province, district, paymentMethod);
+        PricingSummaryDTO pricing = pricingService.calculatePricing(user, validItems, voucherCode, requestedCoolCash, province, district, normalizedPaymentMethod);
 
         Order order = new Order();
         String orderCode = "CM" + System.currentTimeMillis();
@@ -115,8 +118,8 @@ public class OrderService {
         order.setShippingAddress(address.trim());
         order.setNote(note);
 
-        order.setPaymentMethod(paymentMethod != null ? paymentMethod.toUpperCase() : "COD");
-        if ("VNPAY".equalsIgnoreCase(paymentMethod)) {
+        order.setPaymentMethod(normalizedPaymentMethod);
+        if ("VNPAY".equals(normalizedPaymentMethod)) {
             order.setOrderStatus("PENDING");
             order.setPaymentStatus("PAYMENT_PENDING");
         } else {
@@ -139,45 +142,37 @@ public class OrderService {
         // 2. Snapshot giá bán & giá vốn lịch sử (Historical COGS)
         List<OrderItem> savedItems = new ArrayList<>();
         for (CartItem ci : validItems) {
-            OrderItem oi = new OrderItem();
-            oi.setOrder(order);
-            oi.setVariant(ci.getVariant());
-            oi.setProductNameSnapshot(ci.getVariant().getProduct() != null ? ci.getVariant().getProduct().getName() : "");
-            oi.setSkuSnapshot(ci.getVariant().getSku());
-            oi.setColorNameSnapshot(ci.getVariant().getColor() != null ? ci.getVariant().getColor().getName() : "");
-            oi.setSizeNameSnapshot(ci.getVariant().getSize() != null ? ci.getVariant().getSize().getName() : "");
-            oi.setQuantity(ci.getQuantity());
-            oi.setUnitPrice(ci.getVariant().getSalePrice());
-            oi.setTotalPrice(ci.getVariant().getSalePrice().multiply(BigDecimal.valueOf(ci.getQuantity())));
-            // Historical Cost Snapshot
-            BigDecimal currentCost = ci.getVariant().getImportPrice() != null ? ci.getVariant().getImportPrice() : BigDecimal.ZERO;
-            oi.setCostPriceSnapshot(currentCost);
+            ProductVariant v = ci.getVariant();
+            Product p = v.getProduct();
 
-            savedItems.add(orderItemRepository.save(oi));
+            OrderItem item = new OrderItem();
+            item.setOrder(order);
+            item.setVariant(v);
+            item.setProductNameSnapshot(p != null ? p.getName() : "Sản phẩm Coolmate");
+            item.setSkuSnapshot(v.getSku());
+            item.setColorNameSnapshot(v.getColor() != null ? v.getColor().getName() : "");
+            item.setSizeNameSnapshot(v.getSize() != null ? v.getSize().getName() : "");
+            item.setQuantity(ci.getQuantity());
+
+            BigDecimal salePrice = v.getSalePrice() != null ? v.getSalePrice() : (p != null ? p.getBasePrice() : BigDecimal.ZERO);
+            item.setUnitPrice(salePrice);
+            item.setTotalPrice(salePrice.multiply(BigDecimal.valueOf(ci.getQuantity())));
+            item.setCostPriceSnapshot(v.getImportPrice() != null ? v.getImportPrice() : BigDecimal.ZERO);
+            item.setIsReviewed(false);
+
+            orderItemRepository.save(item);
+            savedItems.add(item);
         }
         order.setItems(savedItems);
 
-        // 3. Giữ tồn kho nguyên tử (Stock Reservation)
+        // 3. Tạm giữ tồn kho qua StockService (Idempotent và Concurrency Safe)
         stockService.reserveStock(savedItems, order);
 
-        // 4. Voucher Concurrency Check & Handling under DB Lock
+        // 4. Voucher Handling
         if (pricing.getAppliedPromotion() != null) {
-            Promotion promo = pricing.getAppliedPromotion();
-            Promotion lockedPromo = findPromotionWithLock(promo.getId());
+            Promotion lockedPromo = findPromotionWithLock(pricing.getAppliedPromotion().getId());
 
-            if (!Boolean.TRUE.equals(lockedPromo.getIsActive())) {
-                throw new CustomException("Mã giảm giá '" + lockedPromo.getCode() + "' đã tạm ngưng áp dụng.");
-            }
-
-            LocalDateTime now = LocalDateTime.now();
-            if (lockedPromo.getStartDate() != null && now.isBefore(lockedPromo.getStartDate())) {
-                throw new CustomException("Mã giảm giá '" + lockedPromo.getCode() + "' chưa đến ngày áp dụng.");
-            }
-            if (lockedPromo.getEndDate() != null && now.isAfter(lockedPromo.getEndDate())) {
-                throw new CustomException("Mã giảm giá '" + lockedPromo.getCode() + "' đã hết hạn sử dụng.");
-            }
-
-            // Chống 2 checkout đồng thời vượt giới hạn sử dụng tổng
+            // Chống 2 checkout đồng thời vượt usage limit
             if (lockedPromo.getUsageLimit() != null) {
                 long activeUsages = promotionUsageRepository.countByPromotionIdAndStatusNot(lockedPromo.getId(), "RELEASED");
                 if (activeUsages >= lockedPromo.getUsageLimit()) {
@@ -194,7 +189,7 @@ public class OrderService {
             }
 
             if (!promotionUsageRepository.existsByOrderIdAndPromotionId(order.getId(), lockedPromo.getId())) {
-                if ("COD".equalsIgnoreCase(paymentMethod)) {
+                if ("COD".equals(normalizedPaymentMethod)) {
                     lockedPromo.setUsedCount(lockedPromo.getUsedCount() != null ? lockedPromo.getUsedCount() + 1 : 1);
                     promotionRepository.save(lockedPromo);
 
@@ -209,7 +204,7 @@ public class OrderService {
         }
 
         // 5. CoolCash Handling
-        if ("COD".equalsIgnoreCase(paymentMethod)) {
+        if ("COD".equals(normalizedPaymentMethod)) {
             // COD: Trừ CoolCash ngay nếu có
             if (user != null && pricing.getCoolcashUsed().compareTo(BigDecimal.ZERO) > 0) {
                 coolCashService.spendCoolCash(user, order, pricing.getCoolcashUsed(), "ORDER_COOLCASH_SPEND:" + order.getId());
@@ -238,7 +233,7 @@ public class OrderService {
      */
     @Transactional
     public void compensateFailedVnpayCreation(Long orderId, String reason) {
-        Order order = orderRepository.findById(orderId).orElse(null);
+        Order order = orderRepository.findByIdForUpdate(orderId).orElse(null);
         if (order == null) return;
 
         if ("PENDING".equalsIgnoreCase(order.getOrderStatus()) && "PAYMENT_PENDING".equalsIgnoreCase(order.getPaymentStatus())) {
@@ -250,20 +245,22 @@ public class OrderService {
             order.setUpdatedAt(LocalDateTime.now());
             orderRepository.save(order);
 
-            // 1. Release tồn kho đã giữ
+            // 1. Release reserved stock
             stockService.releaseStock(order);
 
-            // 2. Release voucher
+            // 2. Release reserved Voucher
             List<PromotionUsage> usages = promotionUsageRepository.findByOrderId(order.getId());
             for (PromotionUsage u : usages) {
                 u.setStatus("RELEASED");
                 promotionUsageRepository.save(u);
             }
 
-            // 3. Release CoolCash đã giữ
+            // 3. Release reserved CoolCash
             if (order.getUser() != null && order.getCoolcashUsed() != null && order.getCoolcashUsed().compareTo(BigDecimal.ZERO) > 0) {
                 coolCashService.releaseReservedCoolCash(order.getUser(), order, order.getCoolcashUsed(), "ORDER_COOLCASH_RELEASE:" + order.getId());
             }
+
+            notificationService.notifyOrderCancelled(order, "Khởi tạo thanh toán thất bại");
         }
     }
 
@@ -289,8 +286,7 @@ public class OrderService {
 
     @Transactional
     public void cancelExpiredOrder(Long orderId, String reason) {
-        Order order = orderRepository.findByIdForUpdate(orderId)
-                .orElse(null);
+        Order order = orderRepository.findByIdForUpdate(orderId).orElse(null);
         if (order == null) return;
 
         if (!"PENDING".equalsIgnoreCase(order.getOrderStatus()) || !"PAYMENT_PENDING".equalsIgnoreCase(order.getPaymentStatus())) {
@@ -321,7 +317,8 @@ public class OrderService {
 
     @Transactional
     public void cancelOrder(Long orderId, User currentUser, String reason) {
-        Order order = orderRepository.findById(orderId)
+        // P0-6: DB row lock on Order to prevent race condition between cancel, callback and admin actions
+        Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new CustomException("Không tìm thấy đơn hàng #" + orderId));
 
         if ("CANCELLED".equalsIgnoreCase(order.getOrderStatus())) {
@@ -405,11 +402,18 @@ public class OrderService {
     // =========================================================================
     @Transactional
     public void startProcessingRefund(Long orderId, User adminUser) {
-        Order order = orderRepository.findById(orderId)
+        // P0-2: Authorization guard - Only ADMIN can execute refund
+        if (adminUser == null || !adminUser.isAdmin()) {
+            throw new CustomException("Chỉ quản trị viên (ADMIN) mới có quyền tiếp nhận xử lý hoàn tiền.");
+        }
+
+        // P0-6: Row lock on Order
+        Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new CustomException("Không tìm thấy đơn hàng #" + orderId));
 
-        if (!"REFUND_PENDING".equalsIgnoreCase(order.getRefundStatus())) {
-            throw new CustomException("Chỉ đơn hàng ở trạng thái REFUND_PENDING mới có thể tiếp nhận xử lý hoàn tiền (Trạng thái hiện tại: " + order.getRefundStatus() + ").");
+        // P0-5: State machine: only REFUND_PENDING or REFUND_FAILED (retry) -> REFUND_PROCESSING
+        if (!"REFUND_PENDING".equalsIgnoreCase(order.getRefundStatus()) && !"REFUND_FAILED".equalsIgnoreCase(order.getRefundStatus())) {
+            throw new CustomException("Chỉ đơn hàng ở trạng thái REFUND_PENDING hoặc REFUND_FAILED mới có thể tiếp nhận xử lý hoàn tiền (Trạng thái hiện tại: " + order.getRefundStatus() + ").");
         }
 
         order.setRefundStatus("REFUND_PROCESSING");
@@ -419,16 +423,26 @@ public class OrderService {
 
     @Transactional
     public void confirmRefundSuccess(Long orderId, String refundReference, String note, User adminUser) {
-        Order order = orderRepository.findById(orderId)
+        // P0-2: Authorization guard - Only ADMIN can execute refund
+        if (adminUser == null || !adminUser.isAdmin()) {
+            throw new CustomException("Chỉ quản trị viên (ADMIN) mới có quyền xác nhận hoàn tiền thành công.");
+        }
+
+        // P0-6: Row lock on Order
+        Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new CustomException("Không tìm thấy đơn hàng #" + orderId));
 
         // Idempotency: Ngăn hoàn tiền 2 lần
         if ("REFUNDED".equalsIgnoreCase(order.getRefundStatus())) {
-            return;
+            if (refundReference != null && refundReference.trim().equals(order.getRefundReference())) {
+                return;
+            }
+            throw new CustomException("Đơn hàng đã được hoàn tiền thành công với mã tham chiếu khác: " + order.getRefundReference());
         }
 
-        if (!"REFUND_PROCESSING".equalsIgnoreCase(order.getRefundStatus()) && !"REFUND_PENDING".equalsIgnoreCase(order.getRefundStatus())) {
-            throw new CustomException("Đơn hàng không ở trạng thái chờ hoàn tiền hợp lệ (Trạng thái: " + order.getRefundStatus() + ").");
+        // P0-5: Strict state machine: REFUND_PROCESSING -> REFUNDED only. Không cho phép PENDING -> REFUNDED trực tiếp.
+        if (!"REFUND_PROCESSING".equalsIgnoreCase(order.getRefundStatus())) {
+            throw new CustomException("Đơn hàng phải ở trạng thái REFUND_PROCESSING mới có thể xác nhận hoàn tiền thành công (Trạng thái hiện tại: " + order.getRefundStatus() + ").");
         }
 
         if (refundReference == null || refundReference.isBlank()) {
@@ -444,15 +458,28 @@ public class OrderService {
         }
         order.setUpdatedAt(LocalDateTime.now());
         orderRepository.save(order);
+
+        notificationService.notifyOrderRefunded(order);
     }
 
     @Transactional
     public void markRefundFailed(Long orderId, String failureReason, User adminUser) {
-        Order order = orderRepository.findById(orderId)
+        // P0-2: Authorization guard - Only ADMIN can execute refund
+        if (adminUser == null || !adminUser.isAdmin()) {
+            throw new CustomException("Chỉ quản trị viên (ADMIN) mới có quyền đánh dấu hoàn tiền thất bại.");
+        }
+
+        // P0-6: Row lock on Order
+        Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new CustomException("Không tìm thấy đơn hàng #" + orderId));
 
         if ("REFUNDED".equalsIgnoreCase(order.getRefundStatus())) {
             throw new CustomException("Đơn hàng đã được hoàn tiền thành công trước đó, không thể đánh dấu thất bại.");
+        }
+
+        // P0-5: Strict state machine: REFUND_PROCESSING -> REFUND_FAILED
+        if (!"REFUND_PROCESSING".equalsIgnoreCase(order.getRefundStatus())) {
+            throw new CustomException("Đơn hàng phải ở trạng thái REFUND_PROCESSING mới có thể đánh dấu thất bại (Trạng thái hiện tại: " + order.getRefundStatus() + ").");
         }
 
         order.setRefundStatus("REFUND_FAILED");
@@ -466,7 +493,8 @@ public class OrderService {
     // =========================================================================
     @Transactional
     public void completeOrder(Long orderId) {
-        Order order = orderRepository.findById(orderId)
+        // P0-6: DB row lock on Order
+        Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new CustomException("Không tìm thấy đơn hàng #" + orderId));
 
         if ("COMPLETED".equalsIgnoreCase(order.getOrderStatus())) {
@@ -533,7 +561,8 @@ public class OrderService {
 
     @Transactional
     public void transitionStatus(Long orderId, String targetStatus, User currentUser) {
-        Order order = orderRepository.findById(orderId)
+        // P0-6: DB row lock on Order
+        Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new CustomException("Không tìm thấy đơn hàng #" + orderId));
 
         String currentStatus = order.getOrderStatus() != null ? order.getOrderStatus().toUpperCase() : "PENDING";

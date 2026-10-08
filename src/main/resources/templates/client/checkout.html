@@ -72,7 +72,7 @@
                                         <span class="badge bg-primary-subtle text-primary small" th:if="${addr.isDefault}">Mặc định</span>
                                     </div>
                                     <div class="small text-secondary" 
-                                         th:text="${addr.streetAddress} + ', ' + ${addr.wardName} + ', ' + ${addr.districtName} + ', ' + ${addr.provinceName}">
+                                         th:text="|${addr.streetAddress}, ${addr.wardName}, ${addr.districtName}, ${addr.provinceName}|">
                                         123 Đường ABC, Phường 1, Quận 1, TP. Hồ Chí Minh
                                     </div>
                                 </div>

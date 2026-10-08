@@ -433,6 +433,13 @@ BEGIN
 END
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Orders_RefundAmount')
+BEGIN
+    ALTER TABLE [dbo].[Orders] ADD CONSTRAINT [CK_Orders_RefundAmount] CHECK ([refund_amount] IS NULL OR [refund_amount] >= 0);
+    PRINT 'Added constraint CK_Orders_RefundAmount to Orders';
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Orders_Amounts')
 BEGIN
     ALTER TABLE [dbo].[Orders] ADD CONSTRAINT [CK_Orders_Amounts] CHECK (

@@ -236,11 +236,8 @@ public class ReturnService {
             throw new CustomException("Yêu cầu đổi trả #" + returnId + " phải ở trạng thái PROCESSING (đang kiểm định) mới có thể hoàn tất (trạng thái hiện tại: " + req.getStatus() + ").");
         }
 
-        req.setStatus("COMPLETED");
-        req.setProcessedAt(LocalDateTime.now());
-        req.setRefundMethod(refundMethod != null ? refundMethod : "COOLCASH");
-        req.setRefundStatus("COMPLETED");
-        req.setRefundReference("REFUND-" + req.getId() + "-" + System.currentTimeMillis());
+        String finalRefundMethod = (refundMethod != null && !refundMethod.isBlank()) ? refundMethod.trim().toUpperCase() : "COOLCASH";
+        req.setRefundMethod(finalRefundMethod);
 
         // 1. Nhập kho lại sản phẩm đổi trả (Idempotent theo returnId qua StockService)
         if (req.getOrderItem() != null && req.getOrderItem().getVariant() != null) {
@@ -252,18 +249,37 @@ public class ReturnService {
             stockService.dispatchExchangeVariant(req.getTargetVariant(), req.getQuantity(), req.getId());
         }
 
-        // 3. Hoàn tiền nếu có (Idempotent theo returnId)
-        if (req.getRefundAmount() != null && req.getRefundAmount().compareTo(BigDecimal.ZERO) > 0) {
-            if ("COOLCASH".equalsIgnoreCase(refundMethod) || refundMethod == null) {
+        boolean hasRefund = req.getRefundAmount() != null && req.getRefundAmount().compareTo(BigDecimal.ZERO) > 0;
+
+        // P0-4: Return refund must not fake success
+        // Chỉ cho phép COOLCASH refund tự động hoàn tất COMPLETED.
+        // Các method khác (VNPAY, BANK): giữ REFUND_PENDING / PROCESSING, KHÔNG tạo fake reference và chờ xác nhận thực tế.
+        if (hasRefund) {
+            if ("COOLCASH".equalsIgnoreCase(finalRefundMethod)) {
                 coolCashService.refundCoolCash(req.getUser(), req.getOrder(), req.getRefundAmount(), 
                         "Hoàn tiền ví CoolCash từ yêu cầu đổi trả #" + req.getId() + " (Đơn #" + req.getOrder().getOrderCode() + ")",
                         "RETURN_REFUND:" + req.getId());
+                req.setRefundStatus("REFUNDED");
+                req.setRefundReference("COOLCASH-RETURN-" + req.getId());
+                req.setStatus("COMPLETED");
+                req.setProcessedAt(LocalDateTime.now());
+            } else {
+                req.setRefundStatus("REFUND_PENDING");
+                req.setRefundReference(null); // Không tạo fake reference!
+                req.setStatus("PROCESSING");   // Tiếp tục ở PROCESSING chờ Admin/kế toán chuyển khoản thực tế
+                req.setProcessedAt(LocalDateTime.now());
             }
+        } else {
+            // Không có khoản tiền cần hoàn (đổi hàng ngang giá)
+            req.setRefundStatus("NONE");
+            req.setRefundReference(null);
+            req.setStatus("COMPLETED");
+            req.setProcessedAt(LocalDateTime.now());
         }
 
-        // 4. Thu hồi cashback đã trao thưởng trước đó và giảm tổng chi tiêu nếu có (Idempotent theo returnId)
+        // 4. Thu hồi cashback đã trao thưởng trước đó và giảm tổng chi tiêu nếu có khoản hoàn tiền
         Order order = req.getOrder();
-        if (order != null && order.getCoolcashEarned() != null && order.getCoolcashEarned().compareTo(BigDecimal.ZERO) > 0) {
+        if (order != null && order.getCoolcashEarned() != null && order.getCoolcashEarned().compareTo(BigDecimal.ZERO) > 0 && hasRefund) {
             BigDecimal orderFinal = order.getFinalAmount() != null && order.getFinalAmount().compareTo(BigDecimal.ZERO) > 0 ? order.getFinalAmount() : BigDecimal.ONE;
             BigDecimal cashbackToRevoke = order.getCoolcashEarned()
                     .multiply(req.getRefundAmount())
@@ -275,7 +291,7 @@ public class ReturnService {
             }
         }
 
-        if (req.getUser() != null && req.getRefundAmount() != null && req.getRefundAmount().compareTo(BigDecimal.ZERO) > 0) {
+        if (req.getUser() != null && hasRefund) {
             User u = req.getUser();
             BigDecimal currentSpent = u.getTotalSpent() != null ? u.getTotalSpent() : BigDecimal.ZERO;
             BigDecimal newSpent = currentSpent.subtract(req.getRefundAmount()).max(BigDecimal.ZERO);
@@ -293,6 +309,41 @@ public class ReturnService {
             userRepository.save(u);
         }
 
+        orderReturnRepository.save(req);
+        if ("COMPLETED".equalsIgnoreCase(req.getStatus())) {
+            notificationService.notifyReturnCompleted(req);
+        }
+    }
+
+    /**
+     * Xác nhận hoàn tiền thực tế cho yêu cầu đổi trả (áp dụng cho BANK / VNPAY khi đã chuyển khoản thành công).
+     * Chỉ ADMIN mới có quyền xác nhận hoàn tiền thực tế.
+     */
+    @Transactional
+    public void confirmReturnRefund(Long returnId, String refundReference, User adminUser) {
+        if (adminUser == null || !adminUser.isAdmin()) {
+            throw new CustomException("Chỉ quản trị viên (ADMIN) mới có quyền xác nhận hoàn tiền đổi trả.");
+        }
+
+        OrderReturn req = orderReturnRepository.findById(returnId)
+                .orElseThrow(() -> new CustomException("Không tìm thấy yêu cầu đổi trả #" + returnId));
+
+        if ("COMPLETED".equalsIgnoreCase(req.getStatus()) && "REFUNDED".equalsIgnoreCase(req.getRefundStatus())) {
+            return; // Idempotent
+        }
+
+        if (!"REFUND_PENDING".equalsIgnoreCase(req.getRefundStatus()) && !"REFUND_PROCESSING".equalsIgnoreCase(req.getRefundStatus())) {
+            throw new CustomException("Yêu cầu đổi trả không ở trạng thái chờ hoàn tiền (Trạng thái hiện tại: " + req.getRefundStatus() + ").");
+        }
+
+        if (refundReference == null || refundReference.isBlank()) {
+            throw new CustomException("Mã tham chiếu hoàn tiền thực tế không được để trống.");
+        }
+
+        req.setRefundStatus("REFUNDED");
+        req.setRefundReference(refundReference.trim());
+        req.setStatus("COMPLETED");
+        req.setProcessedAt(LocalDateTime.now());
         orderReturnRepository.save(req);
         notificationService.notifyReturnCompleted(req);
     }
@@ -317,8 +368,12 @@ public class ReturnService {
             case "COMPLETE":
                 completeReturn(returnId, refundMethod, staffUser);
                 break;
+            case "CONFIRM_REFUND":
+                // Cho phép xác nhận hoàn tiền thực tế nếu có mã tham chiếu
+                confirmReturnRefund(returnId, rejectReason, staffUser);
+                break;
             default:
-                throw new CustomException("Hành động xử lý đổi trả không hợp lệ: '" + action + "'. Chỉ chấp nhận: APPROVE, REJECT, PROCESS, COMPLETE.");
+                throw new CustomException("Hành động xử lý đổi trả không hợp lệ: '" + action + "'. Chỉ chấp nhận: APPROVE, REJECT, PROCESS, COMPLETE, CONFIRM_REFUND.");
         }
     }
 }

@@ -232,6 +232,11 @@ BEGIN
         [payment_bank_code] NVARCHAR(50) NULL,
         [payment_failure_reason] NVARCHAR(500) NULL,
         [delivered_at] DATETIME2 NULL,
+        [refund_status] NVARCHAR(30) NULL,
+        [refund_reference] NVARCHAR(100) NULL,
+        [refund_amount] DECIMAL(18,2) NULL,
+        [refund_processed_at] DATETIME2 NULL,
+        [refund_note] NVARCHAR(500) NULL,
         [created_at] DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP,
         [updated_at] DATETIME2 NULL
     );
@@ -488,6 +493,9 @@ IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_InventoryMo
     ALTER TABLE [dbo].[Inventory_Movements] ADD CONSTRAINT [CK_InventoryMovements_Quantity] CHECK ([quantity] > 0);
 
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Orders_Amounts')
-    ALTER TABLE [dbo].[Orders] ADD CONSTRAINT [CK_Orders_Amounts] CHECK (
+    IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Orders_RefundAmount')
+    ALTER TABLE [dbo].[Orders] ADD CONSTRAINT [CK_Orders_RefundAmount] CHECK ([refund_amount] IS NULL OR [refund_amount] >= 0);
+
+ALTER TABLE [dbo].[Orders] ADD CONSTRAINT [CK_Orders_Amounts] CHECK (
         [subtotal_amount] >= 0 AND [final_amount] >= 0 AND [shipping_fee] >= 0 AND [coolcash_used] >= 0
     );

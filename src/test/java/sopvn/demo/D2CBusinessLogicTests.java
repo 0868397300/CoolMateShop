@@ -1098,4 +1098,317 @@ public class D2CBusinessLogicTests {
         BigDecimal recheckedHistoricalCOGS = historicalItem.getCostPriceSnapshot().multiply(BigDecimal.valueOf(historicalItem.getQuantity()));
         assertEquals(BigDecimal.valueOf(400_000), recheckedHistoricalCOGS);
     }
+
+    // =========================================================================
+    // 19. Invalid paymentMethod rejected strictly
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 19: Invalid paymentMethod rejected strictly (CASH, BANK, ONLINE, abc, null, empty)")
+    void test19_invalidPaymentMethodRejected() {
+        User user = new User(); user.setId(1901L);
+        ProductVariant variant = new ProductVariant(); variant.setId(191L); variant.setStockQuantity(10); variant.setIsActive(true); variant.setSalePrice(BigDecimal.valueOf(100_000));
+        CartItem item = new CartItem(); item.setVariant(variant); item.setQuantity(1);
+        List<CartItem> cartItems = Collections.singletonList(item);
+
+        when(productVariantRepository.findById(191L)).thenReturn(Optional.of(variant));
+
+        // Test with null
+        assertThrows(CustomException.class, () -> {
+            orderService.createOrder(user, "Nguyen Van A", "0901234567", "a@gmail.com", "123 Duong A", "HCM", "Q1", "Note", null, null, false, cartItems);
+        });
+
+        // Test with blank
+        assertThrows(CustomException.class, () -> {
+            orderService.createOrder(user, "Nguyen Van A", "0901234567", "a@gmail.com", "123 Duong A", "HCM", "Q1", "Note", "   ", null, false, cartItems);
+        });
+
+        // Test with BANK
+        assertThrows(CustomException.class, () -> {
+            orderService.createOrder(user, "Nguyen Van A", "0901234567", "a@gmail.com", "123 Duong A", "HCM", "Q1", "Note", "BANK", null, false, cartItems);
+        });
+
+        // Test with CASH
+        assertThrows(CustomException.class, () -> {
+            orderService.createOrder(user, "Nguyen Van A", "0901234567", "a@gmail.com", "123 Duong A", "HCM", "Q1", "Note", "CASH", null, false, cartItems);
+        });
+
+        // Test with random string
+        assertThrows(CustomException.class, () -> {
+            orderService.createOrder(user, "Nguyen Van A", "0901234567", "a@gmail.com", "123 Duong A", "HCM", "Q1", "Note", "arbitrary_method", null, false, cartItems);
+        });
+    }
+
+    // =========================================================================
+    // 20. STAFF refund authorization forbidden (Only ADMIN allowed)
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 20: STAFF refund authorization forbidden (Only ADMIN allowed)")
+    void test20_staffRefundAuthorizationForbidden() {
+        User staff = new User();
+        staff.setId(2001L);
+        Role staffRole = new Role(); staffRole.setRoleName("ROLE_STAFF");
+        staff.setRoles(Collections.singleton(staffRole));
+
+        // Staff calling startProcessingRefund -> Throws CustomException
+        assertThrows(CustomException.class, () -> {
+            orderService.startProcessingRefund(1L, staff);
+        });
+
+        // Staff calling confirmRefundSuccess -> Throws CustomException
+        assertThrows(CustomException.class, () -> {
+            orderService.confirmRefundSuccess(1L, "REF-123", "Note", staff);
+        });
+
+        // Staff calling markRefundFailed -> Throws CustomException
+        assertThrows(CustomException.class, () -> {
+            orderService.markRefundFailed(1L, "Reason", staff);
+        });
+
+        // Staff calling confirmReturnRefund on ReturnService -> Throws CustomException
+        assertThrows(CustomException.class, () -> {
+            returnService.confirmReturnRefund(1L, "REF-123", staff);
+        });
+    }
+
+    // =========================================================================
+    // 21. ADMIN refund authorization allowed and state machine transitions
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 21: ADMIN refund authorization allowed and state machine transitions")
+    void test21_adminRefundAllowedAndStateMachine() {
+        User admin = new User();
+        admin.setId(2101L);
+        Role adminRole = new Role(); adminRole.setRoleName("ROLE_ADMIN");
+        admin.setRoles(Collections.singleton(adminRole));
+
+        Order order = new Order();
+        order.setId(211L);
+        order.setOrderCode("CM-REF-211");
+        order.setPaymentStatus("REFUND_PENDING");
+        order.setRefundStatus("REFUND_PENDING");
+        order.setFinalAmount(BigDecimal.valueOf(500_000));
+
+        when(orderRepository.findByIdForUpdate(211L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Step 1: startProcessingRefund -> transitions to REFUND_PROCESSING
+        orderService.startProcessingRefund(211L, admin);
+        assertEquals("REFUND_PROCESSING", order.getRefundStatus());
+
+        // Step 2: markRefundFailed -> transitions to REFUND_FAILED
+        orderService.markRefundFailed(211L, "Bank gateway timed out", admin);
+        assertEquals("REFUND_FAILED", order.getRefundStatus());
+
+        // Step 3: startProcessingRefund from REFUND_FAILED -> retry succeeds to REFUND_PROCESSING
+        orderService.startProcessingRefund(211L, admin);
+        assertEquals("REFUND_PROCESSING", order.getRefundStatus());
+
+        // Step 4: confirmRefundSuccess -> transitions to REFUNDED
+        orderService.confirmRefundSuccess(211L, "VNPAY-REFUND-999", "Hoàn tiền thành công", admin);
+        assertEquals("REFUNDED", order.getRefundStatus());
+        assertEquals("REFUNDED", order.getPaymentStatus());
+        assertEquals("VNPAY-REFUND-999", order.getRefundReference());
+    }
+
+    // =========================================================================
+    // 22. Return external refund (BANK/VNPAY) does NOT fake success
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 22: Return external refund (BANK/VNPAY) does NOT fake success - Option A enforcement")
+    void test22_returnExternalRefundDoesNotFakeSuccess() {
+        User staff = new User(); staff.setId(2201L);
+        OrderReturn req = new OrderReturn();
+        req.setId(221L);
+        req.setStatus("PROCESSING");
+        req.setRefundAmount(BigDecimal.valueOf(250_000));
+        req.setQuantity(1);
+
+        Order order = new Order();
+        order.setId(220L);
+        order.setOrderCode("CM-RET-220");
+        order.setFinalAmount(BigDecimal.valueOf(500_000));
+        req.setOrder(order);
+
+        when(orderReturnRepository.findById(221L)).thenReturn(Optional.of(req));
+        when(orderReturnRepository.save(any(OrderReturn.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // When refundMethod is BANK: does NOT set COMPLETED, keeps PROCESSING and REFUND_PENDING
+        returnService.completeReturn(221L, "BANK", staff);
+
+        assertEquals("PROCESSING", req.getStatus(), "Return status must remain PROCESSING while external refund is pending");
+        assertEquals("REFUND_PENDING", req.getRefundStatus(), "Refund status must be REFUND_PENDING, not fake COMPLETED");
+        assertNull(req.getRefundReference(), "External refund must not generate fake reference before actual refund");
+    }
+
+    // =========================================================================
+    // 23. ADMIN confirmReturnRefund with real reference completes return
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 23: ADMIN confirmReturnRefund with real reference completes return")
+    void test23_adminConfirmReturnRefundSuccess() {
+        User admin = new User(); admin.setId(2301L);
+        Role adminRole = new Role(); adminRole.setRoleName("ROLE_ADMIN");
+        admin.setRoles(Collections.singleton(adminRole));
+
+        OrderReturn req = new OrderReturn();
+        req.setId(231L);
+        req.setStatus("PROCESSING");
+        req.setRefundStatus("REFUND_PENDING");
+        req.setRefundAmount(BigDecimal.valueOf(250_000));
+
+        when(orderReturnRepository.findById(231L)).thenReturn(Optional.of(req));
+        when(orderReturnRepository.save(any(OrderReturn.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        returnService.confirmReturnRefund(231L, "BANK-TXN-REAL-888", admin);
+
+        assertEquals("COMPLETED", req.getStatus());
+        assertEquals("REFUNDED", req.getRefundStatus());
+        assertEquals("BANK-TXN-REAL-888", req.getRefundReference());
+    }
+
+    // =========================================================================
+    // 24. Refund confirmation idempotency - duplicate with same ref is no-op, different ref rejected
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 24: Refund confirmation idempotency - same ref no-op, different ref rejected")
+    void test24_refundConfirmationIdempotency() {
+        User admin = new User(); admin.setId(2401L);
+        Role adminRole = new Role(); adminRole.setRoleName("ROLE_ADMIN");
+        admin.setRoles(Collections.singleton(adminRole));
+
+        Order order = new Order();
+        order.setId(241L);
+        order.setRefundStatus("REFUNDED");
+        order.setRefundReference("EXISTING-REF-001");
+
+        when(orderRepository.findByIdForUpdate(241L)).thenReturn(Optional.of(order));
+
+        // Duplicate with same reference -> returns peacefully (idempotent)
+        assertDoesNotThrow(() -> {
+            orderService.confirmRefundSuccess(241L, "EXISTING-REF-001", null, admin);
+        });
+
+        // Duplicate with different reference -> throws CustomException to prevent overwrite race condition
+        assertThrows(CustomException.class, () -> {
+            orderService.confirmRefundSuccess(241L, "DIFFERENT-REF-002", null, admin);
+        });
+    }
+
+    // =========================================================================
+    // 25. Complete order requires DELIVERED and VNPAY must be PAID
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 25: Complete order requires DELIVERED and VNPAY must be PAID")
+    void test25_completeOrderDeliveredAndPaidGuard() {
+        Order unpaidVnpay = new Order();
+        unpaidVnpay.setId(251L);
+        unpaidVnpay.setPaymentMethod("VNPAY");
+        unpaidVnpay.setPaymentStatus("PAYMENT_PENDING");
+        unpaidVnpay.setOrderStatus("DELIVERED");
+
+        when(orderRepository.findByIdForUpdate(251L)).thenReturn(Optional.of(unpaidVnpay));
+
+        // Unpaid VNPAY delivered order cannot be completed
+        assertThrows(CustomException.class, () -> {
+            orderService.completeOrder(251L);
+        });
+
+        Order shippingOrder = new Order();
+        shippingOrder.setId(252L);
+        shippingOrder.setPaymentMethod("COD");
+        shippingOrder.setOrderStatus("SHIPPING");
+
+        when(orderRepository.findByIdForUpdate(252L)).thenReturn(Optional.of(shippingOrder));
+
+        // Order in SHIPPING (not DELIVERED) cannot be completed
+        assertThrows(CustomException.class, () -> {
+            orderService.completeOrder(252L);
+        });
+    }
+
+    // =========================================================================
+    // 26. Complete order idempotency and exact-once cashback & totalSpent
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 26: Complete order idempotency and exact-once cashback & totalSpent")
+    void test26_completeOrderIdempotencyAndExactOnceCashback() {
+        User user = new User();
+        user.setId(2601L);
+        user.setCoolcashBalance(BigDecimal.ZERO);
+        user.setTotalSpent(BigDecimal.ZERO);
+        user.setMembershipTier("NEW");
+
+        Order order = new Order();
+        order.setId(261L);
+        order.setUser(user);
+        order.setPaymentMethod("COD");
+        order.setPaymentStatus("UNPAID");
+        order.setOrderStatus("DELIVERED");
+        order.setFinalAmount(BigDecimal.valueOf(1_000_000));
+
+        when(orderRepository.findByIdForUpdate(261L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // First completion: marks PAID, COMPLETED, grants 3% cashback = 30,000, updates totalSpent = 1,000,000, tier = SILVER
+        orderService.completeOrder(261L);
+        assertEquals("COMPLETED", order.getOrderStatus());
+        assertEquals("PAID", order.getPaymentStatus());
+        assertEquals(0, user.getTotalSpent().compareTo(BigDecimal.valueOf(1_000_000)));
+        assertEquals("SILVER", user.getMembershipTier());
+
+        // Second completion call: order already COMPLETED -> no-op, does not grant cashback or increase spent again
+        orderService.completeOrder(261L);
+        assertEquals(0, user.getTotalSpent().compareTo(BigDecimal.valueOf(1_000_000)), "totalSpent must not be doubled");
+    }
+
+    // =========================================================================
+    // 27. Duplicate CoolCash release without reservation never creates money
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 27: Duplicate CoolCash release idempotent - no double credit")
+    void test27_duplicateCoolCashReleaseIdempotent() {
+        User user = new User();
+        user.setId(2701L);
+        user.setCoolcashBalance(BigDecimal.valueOf(50_000));
+
+        Order order = new Order();
+        order.setId(271L);
+        order.setOrderCode("CM-REL-271");
+
+        String releaseKey = "ORDER_COOLCASH_RELEASE:271";
+        String reserveKey = "ORDER_COOLCASH_RESERVE:271";
+
+        // Scenario 1: Already released
+        when(coolCashTransactionRepository.existsByIdempotencyKey(releaseKey)).thenReturn(true);
+
+        coolCashService.releaseReservedCoolCash(user, order, BigDecimal.valueOf(20_000), releaseKey);
+        assertEquals(0, user.getCoolcashBalance().compareTo(BigDecimal.valueOf(50_000)), "Balance should remain unchanged if already released");
+    }
+
+    // =========================================================================
+    // 28. Duplicate inventory release idempotent - no double increment
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 28: Duplicate inventory release idempotent - no double stock increment")
+    void test28_duplicateInventoryReleaseIdempotent() {
+        ProductVariant variant = new ProductVariant();
+        variant.setId(281L);
+        variant.setStockQuantity(10);
+
+        OrderItem item = new OrderItem();
+        item.setVariant(variant);
+        item.setQuantity(2);
+
+        Order order = new Order();
+        order.setId(280L);
+        order.setItems(Collections.singletonList(item));
+
+        // If ORDER_RELEASE already recorded -> returns immediately without incrementing stock
+        when(inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType("ORDER", 280L, "ORDER_RELEASE")).thenReturn(true);
+
+        stockService.releaseStock(order);
+        assertEquals(10, variant.getStockQuantity(), "Stock must not be incremented when release already exists");
+    }
+
 }

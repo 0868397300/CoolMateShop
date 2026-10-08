@@ -1,5 +1,7 @@
 package sopvn.demo.admin;
 
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -116,6 +118,10 @@ public class AdminOrderController {
         return "admin/order-print";
     }
 
+    /**
+     * P0-2: Refund Authorization - Bắt buộc quyền ADMIN (STAFF bị từ chối 403 AccessDeniedException).
+     */
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/{orderId}/refund-action")
     public String handleRefundAction(@PathVariable("orderId") Long orderId,
                                      @RequestParam("action") String action,
@@ -123,12 +129,17 @@ public class AdminOrderController {
                                      @RequestParam(value = "note", required = false) String note,
                                      Principal principal,
                                      RedirectAttributes redirectAttributes) {
-        try {
-            User admin = null;
-            if (principal != null) {
-                admin = userRepository.findByEmail(principal.getName()).orElse(null);
-            }
+        User admin = null;
+        if (principal != null) {
+            admin = userRepository.findByEmail(principal.getName()).orElse(null);
+        }
 
+        // Hard enforcement: kiểm tra quyền ADMIN tại controller layer
+        if (admin == null || !admin.isAdmin()) {
+            throw new AccessDeniedException("Chỉ quản trị viên (ADMIN) mới có quyền thực hiện thao tác hoàn tiền.");
+        }
+
+        try {
             if ("START_PROCESSING".equalsIgnoreCase(action)) {
                 orderService.startProcessingRefund(orderId, admin);
                 redirectAttributes.addFlashAttribute("successMessage", "Đã chuyển đơn hàng #" + orderId + " sang trạng thái đang hoàn tiền (REFUND_PROCESSING).");
@@ -141,6 +152,8 @@ public class AdminOrderController {
             } else {
                 throw new CustomException("Hành động hoàn tiền không hợp lệ: " + action);
             }
+        } catch (AccessDeniedException ex) {
+            throw ex;
         } catch (CustomException ex) {
             redirectAttributes.addFlashAttribute("errorMessage", ex.getMessage());
         } catch (Exception ex) {
