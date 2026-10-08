@@ -726,9 +726,9 @@ GO
 -- DỮ LIỆU MẪU PHIẾU NHẬP KHO (INVENTORY RECEIPTS)
 -- =============================================
 SET IDENTITY_INSERT [dbo].[Inventory_Receipts] ON 
-INSERT [dbo].[Inventory_Receipts] ([id], [receipt_code], [supplier_name], [created_by], [total_amount], [note], [status], [created_at]) VALUES (1, N'PNK20260901001', N'Công ty Cổ phần Dệt may Thành Công', 1, CAST(42650000.00 AS Decimal(18, 2)), N'Nhập lô hàng áo thun Cotton Compact và Polo Excool đợt đầu tháng 9', N'COMPLETED', CAST(N'2026-09-01T09:00:00.0000000' AS DateTime2))
-INSERT [dbo].[Inventory_Receipts] ([id], [receipt_code], [supplier_name], [created_by], [total_amount], [note], [status], [created_at]) VALUES (2, N'PNK20260910002', N'Xưởng may Thể thao Tân Bình Pro', 2, CAST(35450000.00 AS Decimal(18, 2)), N'Nhập bổ sung quần short chạy bộ 5 inch và quần lót Trunk Bamboo', N'COMPLETED', CAST(N'2026-09-10T14:30:00.0000000' AS DateTime2))
-INSERT [dbo].[Inventory_Receipts] ([id], [receipt_code], [supplier_name], [created_by], [total_amount], [note], [status], [created_at]) VALUES (3, N'PNK20260920003', N'Công ty TNHH Phụ kiện Dệt may Nam Định', 2, CAST(5700000.00 AS Decimal(18, 2)), N'Nhập lô tất nam thể thao đệm gót trắng', N'COMPLETED', CAST(N'2026-09-20T10:15:00.0000000' AS DateTime2))
+INSERT [dbo].[Inventory_Receipts] ([id], [receipt_code], [supplier_name], [created_by], [total_amount], [note], [status], [created_at]) VALUES (1, N'PNK20260901001', N'Công ty Cổ phần Dệt may Thành Công', 1, CAST(42650000.00 AS Decimal(18, 2)), N'Nhập lô hàng áo thun Cotton Compact và Polo Excool đợt đầu tháng 9', N'APPROVED', CAST(N'2026-09-01T09:00:00.0000000' AS DateTime2))
+INSERT [dbo].[Inventory_Receipts] ([id], [receipt_code], [supplier_name], [created_by], [total_amount], [note], [status], [created_at]) VALUES (2, N'PNK20260910002', N'Xưởng may Thể thao Tân Bình Pro', 2, CAST(35450000.00 AS Decimal(18, 2)), N'Nhập bổ sung quần short chạy bộ 5 inch và quần lót Trunk Bamboo', N'APPROVED', CAST(N'2026-09-10T14:30:00.0000000' AS DateTime2))
+INSERT [dbo].[Inventory_Receipts] ([id], [receipt_code], [supplier_name], [created_by], [total_amount], [note], [status], [created_at]) VALUES (3, N'PNK20260920003', N'Công ty TNHH Phụ kiện Dệt may Nam Định', 2, CAST(5700000.00 AS Decimal(18, 2)), N'Nhập lô tất nam thể thao đệm gót trắng', N'APPROVED', CAST(N'2026-09-20T10:15:00.0000000' AS DateTime2))
 SET IDENTITY_INSERT [dbo].[Inventory_Receipts] OFF
 GO
 
@@ -955,7 +955,7 @@ ALTER TABLE [dbo].[Users] ADD DEFAULT (getdate()) FOR [updated_at]
 GO
 ALTER TABLE [dbo].[Inventory_Receipts] ADD DEFAULT ((0)) FOR [total_amount]
 GO
-ALTER TABLE [dbo].[Inventory_Receipts] ADD DEFAULT ('COMPLETED') FOR [status]
+ALTER TABLE [dbo].[Inventory_Receipts] ADD DEFAULT ('SUBMITTED') FOR [status]
 GO
 ALTER TABLE [dbo].[Inventory_Receipts] ADD DEFAULT (getdate()) FOR [created_at]
 GO
@@ -1244,6 +1244,13 @@ BEGIN
 END
 GO
 
+UPDATE [dbo].[Inventory_Receipts]
+SET [status] = 'APPROVED',
+    [approved_by] = COALESCE([approved_by], [created_by]),
+    [approved_at] = COALESCE([approved_at], [created_at])
+WHERE [status] = 'COMPLETED' OR [status] = 'APPROVED';
+GO
+
 -- 4. Order_Returns: refund tracking and processing
 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Order_Returns]') AND name = 'processed_at')
 BEGIN
@@ -1286,6 +1293,16 @@ BEGIN
     ALTER TABLE [dbo].[Reviews] ADD [status] [varchar](30) NOT NULL CONSTRAINT DF_Reviews_Status DEFAULT 'PENDING';
     PRINT 'Added status to Reviews';
 END
+GO
+
+UPDATE dbo.Reviews
+SET status = 'APPROVED'
+WHERE is_approved = 1;
+
+UPDATE dbo.Reviews
+SET status = 'PENDING'
+WHERE is_approved = 0
+  AND (status IS NULL OR status <> 'REJECTED');
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Reviews]') AND name = 'admin_reply')

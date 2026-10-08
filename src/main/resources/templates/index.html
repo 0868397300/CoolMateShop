@@ -1498,6 +1498,13 @@
         /*]]>*/
     </script>
     <script>
+        function getCsrfToken() {
+            const match = document.cookie.match(new RegExp('(^|;\\s*)XSRF-TOKEN=([^;]*)'));
+            if (match) return decodeURIComponent(match[2]);
+            const metaToken = document.querySelector('meta[name="_csrf"]');
+            return metaToken ? metaToken.getAttribute('content') : '';
+        }
+
         // Khởi tạo thư viện AOS (Animate on scroll)
         if (typeof AOS !== 'undefined') {
             AOS.init({
@@ -1631,7 +1638,10 @@
 
             fetch('/gio-hang/them-nhanh', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-XSRF-TOKEN': getCsrfToken()
+                },
                 body: new URLSearchParams({
                     productId: productId,
                     colorId: colorId || '',
@@ -1726,7 +1736,10 @@
 
             fetch('/api/wishlist/toggle/' + productId, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': getCsrfToken()
+                }
             })
             .then(res => res.json())
             .then(data => {
