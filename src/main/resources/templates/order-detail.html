@@ -153,6 +153,7 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content rounded-4 border-0 shadow">
                 <form th:action="@{/doi-tra/yeu-cau}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                     <input type="hidden" name="orderId" th:value="${order.id}">
                     <input type="hidden" name="orderItemId" th:if="${order.items != null and !order.items.isEmpty()}" th:value="${order.items[0].id}">
                     <div class="modal-header border-0 pb-0">

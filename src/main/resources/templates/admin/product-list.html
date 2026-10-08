@@ -122,6 +122,7 @@
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                         <form th:action="@{'/admin/san-pham/' + ${p.id} + '/trang-thai'}" method="post" class="d-inline">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                             <button type="submit" class="btn btn-sm btn-outline-warning" title="Bật/Tắt trạng thái">
                                                 <i class="bi bi-arrow-repeat"></i>
                                             </button>

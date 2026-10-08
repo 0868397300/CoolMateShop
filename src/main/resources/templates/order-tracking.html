@@ -28,6 +28,7 @@
 
         <div class="card-custom p-4 mb-4">
             <form th:action="@{/tra-cuu-don-hang}" method="post" class="row g-3">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                 <div class="col-md-5">
                     <label class="form-label small fw-bold">Mã Đơn Hàng <span class="text-danger">*</span></label>
                     <input type="text" name="orderCode" class="form-control" placeholder="Ví dụ: CM1728123456" th:value="${searchOrderCode}" required>

@@ -149,11 +149,13 @@
                                         <td class="text-end pe-3">
                                             <div class="btn-group btn-group-sm">
                                                 <form th:action="@{'/admin/khuyen-mai/' + ${p.id} + '/trang-thai'}" method="post" class="d-inline">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                                     <button type="submit" class="btn btn-outline-secondary" th:title="${p.isActive ? 'Tạm dừng' : 'Kích hoạt'}">
                                                         <i class="bi" th:classappend="${p.isActive ? 'bi-pause-circle' : 'bi-play-circle'}"></i>
                                                     </button>
                                                 </form>
                                                 <form th:action="@{'/admin/khuyen-mai/' + ${p.id} + '/xoa'}" method="post" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn xóa mã voucher này?');">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                                     <button type="submit" class="btn btn-outline-danger" title="Xóa voucher"><i class="bi bi-trash"></i></button>
                                                 </form>
                                             </div>
@@ -204,11 +206,13 @@
                                         <td class="text-end pe-3">
                                             <div class="btn-group btn-group-sm">
                                                 <form th:action="@{'/admin/khuyen-mai/combo/' + ${r.id} + '/trang-thai'}" method="post" class="d-inline">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                                     <button type="submit" class="btn btn-outline-secondary" th:title="${r.isActive ? 'Tạm dừng' : 'Kích hoạt'}">
                                                         <i class="bi" th:classappend="${r.isActive ? 'bi-pause-circle' : 'bi-play-circle'}"></i>
                                                     </button>
                                                 </form>
                                                 <form th:action="@{'/admin/khuyen-mai/combo/' + ${r.id} + '/xoa'}" method="post" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn xóa combo này?');">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                                     <button type="submit" class="btn btn-outline-danger" title="Xóa combo"><i class="bi bi-trash"></i></button>
                                                 </form>
                                             </div>
@@ -228,6 +232,7 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <form th:action="@{/admin/khuyen-mai/tao-moi}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                     <div class="modal-header">
                         <h5 class="modal-title fw-bold"><i class="bi bi-ticket-perforated text-primary me-2"></i>Tạo Mã Voucher Mới</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -283,6 +288,7 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <form th:action="@{/admin/khuyen-mai/combo/tao-moi}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                     <div class="modal-header">
                         <h5 class="modal-title fw-bold"><i class="bi bi-layers text-primary me-2"></i>Tạo Quy Tắc Combo Mới</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

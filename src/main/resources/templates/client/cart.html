@@ -75,6 +75,7 @@
                         </div>
                         <div class="col-4 col-md-3">
                             <form th:action="@{/gio-hang/cap-nhat}" method="post" class="d-flex align-items-center gap-1">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                 <input type="hidden" name="itemId" th:value="${item.id}">
                                 <input type="number" name="quantity" class="form-control form-control-sm text-center" th:value="${item.quantity}" min="1" max="99" style="width: 60px;">
                                 <button type="submit" class="btn btn-sm btn-outline-secondary" title="Cập nhật"><i class="bi bi-arrow-clockwise"></i></button>
@@ -82,6 +83,7 @@
                         </div>
                         <div class="col-12 col-md-2 text-md-end mt-2 mt-md-0">
                             <form th:action="@{'/gio-hang/xoa/' + ${item.id}}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                 <button type="submit" class="btn btn-sm text-danger border-0"><i class="bi bi-trash3"></i> Xóa</button>
                             </form>
                         </div>

@@ -29,6 +29,7 @@
         </div>
 
         <form th:action="@{/auth/register}" th:object="${registerRequest}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
             <div class="mb-3">
                 <label class="form-label fw-semibold small">Họ và Tên <span class="text-danger">*</span></label>
                 <input type="text" th:field="*{fullName}" class="form-control" placeholder="Ví dụ: Nguyễn Văn A" required>

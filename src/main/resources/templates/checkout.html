@@ -46,6 +46,7 @@
         </div>
 
         <form th:action="@{/thanh-toan/dat-hang}" method="post" id="checkoutForm">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
             <div class="row g-4">
                 <!-- Left: Shipping Address & Payment -->
                 <div class="col-lg-7">

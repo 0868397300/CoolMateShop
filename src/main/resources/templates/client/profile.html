@@ -36,6 +36,7 @@
                 <a th:href="@{/}" class="btn btn-sm btn-outline-secondary rounded-pill px-3"><i class="bi bi-house me-1"></i>Trang chủ</a>
                 <a th:href="@{/gio-hang}" class="btn btn-sm btn-outline-primary rounded-pill px-3"><i class="bi bi-bag me-1"></i>Giỏ hàng</a>
                 <form th:action="@{/auth/logout}" method="post" class="d-inline">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                     <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3"><i class="bi bi-box-arrow-right me-1"></i>Đăng xuất</button>
                 </form>
             </div>
@@ -117,6 +118,7 @@
                             <p class="text-muted small mb-4">Cập nhật thông tin chi tiết để Coolmate gợi ý kích cỡ trang phục phù hợp nhất cho bạn.</p>
 
                             <form th:action="@{/thong-tin-tai-khoan/cap-nhat}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                 <div class="row g-3">
                                     <div class="col-md-6">
                                         <label class="form-label small fw-bold">Họ và tên <span class="text-danger">*</span></label>
@@ -178,6 +180,7 @@
                                 <div class="p-4 rounded-3 border bg-light">
                                     <h6 class="fw-bold mb-3 text-primary">Thêm Địa Chỉ Giao Hàng Mới</h6>
                                     <form th:action="@{/thong-tin-tai-khoan/dia-chi/them}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                         <div class="row g-3">
                                             <div class="col-md-6">
                                                 <label class="form-label small fw-bold">Tên người nhận <span class="text-danger">*</span></label>
@@ -238,9 +241,11 @@
                                 </div>
                                 <div class="d-flex gap-2">
                                     <form th:unless="${addr.isDefault}" th:action="@{'/thong-tin-tai-khoan/dia-chi/mac-dinh/' + ${addr.id}}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                         <button type="submit" class="btn btn-sm btn-outline-secondary rounded-pill">Đặt mặc định</button>
                                     </form>
                                     <form th:action="@{'/thong-tin-tai-khoan/dia-chi/xoa/' + ${addr.id}}" method="post" onsubmit="return confirm('Bạn có chắc muốn xóa địa chỉ này?');">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                         <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill"><i class="bi bi-trash"></i></button>
                                     </form>
                                 </div>
@@ -288,6 +293,7 @@
                             <p class="text-muted small mb-4">Để bảo mật tài khoản, vui lòng không chia sẻ mật khẩu cho người khác.</p>
 
                             <form th:action="@{/thong-tin-tai-khoan/doi-mat-khau}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                 <div class="mb-3">
                                     <label class="form-label small fw-bold">Mật khẩu hiện tại <span class="text-danger">*</span></label>
                                     <input type="password" name="oldPassword" class="form-control" required>

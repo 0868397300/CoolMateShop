@@ -191,6 +191,7 @@
                                 </td>
                                 <td>
                                     <form th:action="@{'/admin/don-hang/' + ${order.id} + '/status'}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                         <select name="status" class="form-select form-select-sm" onchange="this.form.submit()"
                                                 th:disabled="${order.orderStatus == 'CANCELLED' or order.orderStatus == 'COMPLETED'}">
                                             <option value="PENDING" th:selected="${order.orderStatus == 'PENDING'}">Chờ xử lý (PENDING)</option>
@@ -219,6 +220,7 @@
                                         <div sec:authorize="hasRole('ADMIN')" th:if="${order.refundStatus != null}">
                                             <!-- 1. REFUND_PENDING -> Nút 'Bắt đầu xử lý hoàn tiền' -->
                                             <form th:if="${order.refundStatus == 'REFUND_PENDING'}" th:action="@{'/admin/don-hang/' + ${order.id} + '/refund-action'}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                                 <input type="hidden" name="action" value="START_PROCESSING">
                                                 <button type="submit" class="btn btn-sm btn-outline-warning text-dark py-0 px-2" style="font-size: 0.75rem;" title="Bắt đầu tiếp nhận xử lý hoàn tiền">
                                                     <i class="bi bi-play-circle me-1"></i>Bắt đầu xử lý
@@ -239,6 +241,7 @@
 
                                             <!-- 3. REFUND_FAILED -> Nút 'Thử lại xử lý' -->
                                             <form th:if="${order.refundStatus == 'REFUND_FAILED'}" th:action="@{'/admin/don-hang/' + ${order.id} + '/refund-action'}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                                 <input type="hidden" name="action" value="START_PROCESSING">
                                                 <button type="submit" class="btn btn-sm btn-warning text-dark py-0 px-2" style="font-size: 0.75rem;" title="Thử lại quy trình hoàn tiền">
                                                     <i class="bi bi-arrow-clockwise me-1"></i>Thử lại xử lý
@@ -333,6 +336,7 @@
                                         <div class="modal-dialog modal-dialog-centered">
                                             <div class="modal-content text-start">
                                                 <form th:action="@{'/admin/don-hang/' + ${order.id} + '/refund-action'}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                                     <input type="hidden" name="action" value="CONFIRM_SUCCESS">
                                                     <div class="modal-header">
                                                         <h5 class="modal-title fw-bold text-success"><i class="bi bi-check2-circle me-2"></i>Xác Nhận Hoàn Tiền Thành Công</h5>
@@ -365,6 +369,7 @@
                                         <div class="modal-dialog modal-dialog-centered">
                                             <div class="modal-content text-start">
                                                 <form th:action="@{'/admin/don-hang/' + ${order.id} + '/refund-action'}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                                     <input type="hidden" name="action" value="MARK_FAILED">
                                                     <div class="modal-header">
                                                         <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Đánh Dấu Hoàn Tiền Thất Bại</h5>

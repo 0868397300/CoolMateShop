@@ -130,12 +130,14 @@
                                 <!-- 1. REQUESTED / PENDING: APPROVE hoặc REJECT (Cả STAFF & ADMIN) -->
                                 <div th:if="${r.status == 'PENDING' or r.status == 'REQUESTED'}" class="btn-group btn-group-sm">
                                     <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                         <input type="hidden" name="status" value="APPROVE">
                                         <button type="submit" class="btn btn-sm btn-primary rounded-pill px-2" title="Phê duyệt yêu cầu">
                                             <i class="bi bi-check-circle me-1"></i>Duyệt
                                         </button>
                                     </form>
                                     <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline ms-1">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                         <input type="hidden" name="status" value="REJECT">
                                         <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Từ chối yêu cầu">
                                             <i class="bi bi-x-circle me-1"></i>Từ chối
@@ -146,12 +148,14 @@
                                 <!-- 2. APPROVED: PROCESS (Tiếp nhận hàng về kho) hoặc REJECT (Cả STAFF & ADMIN) -->
                                 <div th:if="${r.status == 'APPROVED'}" class="btn-group btn-group-sm">
                                     <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                         <input type="hidden" name="status" value="PROCESS">
                                         <button type="submit" class="btn btn-sm btn-warning text-dark rounded-pill px-2" title="Tiếp nhận kiện hàng về kho kiểm định">
                                             <i class="bi bi-box-arrow-in-down me-1"></i>Tiếp nhận
                                         </button>
                                     </form>
                                     <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline ms-1">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                         <input type="hidden" name="status" value="REJECT">
                                         <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Từ chối yêu cầu">
                                             <i class="bi bi-x-circle me-1"></i>Từ chối
@@ -164,6 +168,7 @@
                                     <!-- Case 3A: Đổi hàng ngang giá (Không có tiền hoàn) -> Cả STAFF & ADMIN đều được hoàn tất -->
                                     <div th:if="${r.refundAmount == null or r.refundAmount == 0}" class="btn-group btn-group-sm">
                                         <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                             <input type="hidden" name="status" value="COMPLETE">
                                             <input type="hidden" name="refundMethod" value="NONE">
                                             <button type="submit" class="btn btn-sm btn-success rounded-pill px-2" title="Hoàn tất đổi hàng và xuất biến thể mới">
@@ -171,6 +176,7 @@
                                             </button>
                                         </form>
                                         <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline ms-1">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                             <input type="hidden" name="status" value="REJECT">
                                             <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Hàng không đạt chuẩn kiểm định">
                                                 <i class="bi bi-x-circle"></i>
@@ -184,6 +190,7 @@
                                             <!-- Chưa bắt đầu hoàn tiền (refundStatus == NONE hoặc null) -->
                                             <div th:if="${r.refundStatus == 'NONE' or r.refundStatus == null}" class="d-flex flex-column align-items-end gap-1">
                                                 <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                                     <input type="hidden" name="status" value="COMPLETE">
                                                     <input type="hidden" name="refundMethod" value="COOLCASH">
                                                     <button type="submit" class="btn btn-sm btn-success py-0 px-2 rounded-pill" style="font-size: 0.75rem;" title="Hoàn tiền ngay vào Ví CoolCash nội bộ">
@@ -191,6 +198,7 @@
                                                     </button>
                                                 </form>
                                                 <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                                     <input type="hidden" name="status" value="COMPLETE">
                                                     <input type="hidden" name="refundMethod" value="BANK">
                                                     <button type="submit" class="btn btn-sm btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;" title="Chuyển sang trạng thái chờ hoàn tiền qua ngân hàng">
@@ -202,6 +210,7 @@
                                             <!-- Đang ở trạng thái REFUND_PENDING -> Nút 'Bắt đầu xử lý' (START_REFUND) -->
                                             <div th:if="${r.refundStatus == 'REFUND_PENDING'}">
                                                 <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                                     <input type="hidden" name="status" value="START_REFUND">
                                                     <button type="submit" class="btn btn-sm btn-warning text-dark py-0 px-2 rounded-pill" style="font-size: 0.75rem;" title="Tiếp nhận thực hiện lệnh chuyển khoản">
                                                         <i class="bi bi-play-circle me-1"></i>Bắt đầu hoàn tiền
@@ -224,6 +233,7 @@
                                             <!-- Hoàn tiền thất bại (REFUND_FAILED) -> Nút 'Thử lại' (START_REFUND) -->
                                             <div th:if="${r.refundStatus == 'REFUND_FAILED'}">
                                                 <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post" class="d-inline">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                                     <input type="hidden" name="status" value="START_REFUND">
                                                     <button type="submit" class="btn btn-sm btn-outline-warning text-dark py-0 px-2 rounded-pill" style="font-size: 0.75rem;" title="Thử lại chuyển tiền">
                                                         <i class="bi bi-arrow-clockwise me-1"></i>Thử lại hoàn tiền
@@ -251,6 +261,7 @@
                                     <div class="modal-dialog modal-dialog-centered">
                                         <div class="modal-content text-start">
                                             <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                                 <input type="hidden" name="status" value="CONFIRM_REFUND">
                                                 <div class="modal-header">
                                                     <h5 class="modal-title fw-bold text-success"><i class="bi bi-check2-circle me-2"></i>Xác Nhận Hoàn Tiền Thành Công</h5>
@@ -278,6 +289,7 @@
                                     <div class="modal-dialog modal-dialog-centered">
                                         <div class="modal-content text-start">
                                             <form th:action="@{'/admin/doi-tra/' + ${r.id} + '/status'}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                                 <input type="hidden" name="status" value="MARK_REFUND_FAILED">
                                                 <div class="modal-header">
                                                     <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Đánh Dấu Hoàn Tiền Thất Bại</h5>

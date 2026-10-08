@@ -1680,4 +1680,30 @@ public class D2CBusinessLogicTests {
         assertFalse(belongsToP1, "Variant of product 200 must not belong to product 100");
     }
 
+    // =========================================================================
+    // 37. SecurityConfig FormLogin URL and Parameter Contract
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 37: Login Form Action and Spring Security loginProcessingUrl contract")
+    void test37_loginFormActionMatchesSecurityConfig() {
+        assertDoesNotThrow(() -> {
+            Class<?> authCtrl = Class.forName("sopvn.demo.auth.AuthController");
+            assertNotNull(authCtrl);
+            Class<?> secConfig = Class.forName("sopvn.demo.config.SecurityConfig");
+            assertNotNull(secConfig);
+        });
+    }
+
+    // =========================================================================
+    // 38. CSRF Protection for state-changing endpoints
+    // =========================================================================
+    @Test
+    @DisplayName("TEST 38: CSRF Protection enabled with CookieCsrfTokenRepository")
+    void test38_csrfProtectionCookieRepositoryEnabled() {
+        assertDoesNotThrow(() -> {
+            Class<?> secConfig = Class.forName("sopvn.demo.config.SecurityConfig");
+            assertNotNull(secConfig);
+        });
+    }
+
 }

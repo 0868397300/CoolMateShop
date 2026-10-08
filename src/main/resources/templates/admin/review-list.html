@@ -145,13 +145,16 @@
                                         </button>
                                         <!-- Approve / Hide Form -->
                                         <form th:if="${!r.isApproved}" th:action="@{'/admin/danh-gia/' + ${r.id} + '/duyet'}" method="post" class="d-inline">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                             <button type="submit" class="btn btn-outline-success" title="Phê duyệt hiển thị"><i class="bi bi-check-lg"></i></button>
                                         </form>
                                         <form th:if="${r.isApproved}" th:action="@{'/admin/danh-gia/' + ${r.id} + '/an'}" method="post" class="d-inline">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                             <button type="submit" class="btn btn-outline-warning" title="Tạm ẩn đánh giá"><i class="bi bi-eye-slash"></i></button>
                                         </form>
                                         <!-- Delete Form -->
                                         <form th:action="@{'/admin/danh-gia/' + ${r.id} + '/xoa'}" method="post" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn xóa đánh giá này?');">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                             <button type="submit" class="btn btn-outline-danger" title="Xóa đánh giá"><i class="bi bi-trash"></i></button>
                                         </form>
                                     </div>
@@ -161,6 +164,7 @@
                                         <div class="modal-dialog modal-dialog-centered">
                                             <div class="modal-content text-start">
                                                 <form th:action="@{'/admin/danh-gia/' + ${r.id} + '/phan-hoi'}" method="post">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                                     <div class="modal-header">
                                                         <h5 class="modal-title fw-bold"><i class="bi bi-chat-dots text-primary me-2"></i>Phản Hồi Đánh Giá Khách Hàng</h5>
                                                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
