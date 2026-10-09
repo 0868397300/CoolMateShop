@@ -171,11 +171,13 @@ public class D2CBusinessLogicTests {
         order.setPaymentMethod("VNPAY");
         order.setItems(Collections.singletonList(item));
 
-        when(orderRepository.findById(501L)).thenReturn(Optional.of(order));
-        when(productVariantRepository.findById(201L)).thenReturn(Optional.of(variant));
+        when(orderRepository.findByIdForUpdate(501L)).thenReturn(Optional.of(order));
+        when(productVariantRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(variant));
         when(productVariantRepository.save(any(ProductVariant.class))).thenAnswer(inv -> inv.getArgument(0));
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType("ORDER", 501L, "ORDER_RESERVE")).thenReturn(true);
+        when(inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType(
+                eq("ORDER"), eq(501L), anyString()
+        )).thenAnswer(inv -> "ORDER_RESERVE".equals(inv.getArgument(2)));
 
         orderService.cancelOrder(order.getId(), null, "Khách hàng hủy đơn VNPAY quá hạn");
 
@@ -265,7 +267,7 @@ public class D2CBusinessLogicTests {
         order.setOrderStatus("PENDING");
         order.setPaymentStatus("PAYMENT_PENDING");
 
-        when(orderRepository.findById(603L)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate(603L)).thenReturn(Optional.of(order));
 
         // 1. Không thể completeOrder khi chưa DELIVERED và chưa PAID
         assertThrows(CustomException.class, () -> {
@@ -319,15 +321,17 @@ public class D2CBusinessLogicTests {
         promo.setUsedCount(1);
         PromotionUsage usage = new PromotionUsage(promo, user, order, BigDecimal.valueOf(30_000), "FINALIZED");
 
-        when(orderRepository.findById(505L)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate(505L)).thenReturn(Optional.of(order));
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(productVariantRepository.findById(205L)).thenReturn(Optional.of(variant));
+        when(productVariantRepository.findByIdForUpdate(205L)).thenReturn(Optional.of(variant));
         when(productVariantRepository.save(any(ProductVariant.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType("ORDER", 505L, "ORDER_CONSUME")).thenReturn(true);
+        when(inventoryMovementRepository.existsByReferenceTypeAndReferenceIdAndMovementType(
+                eq("ORDER"), eq(505L), anyString()
+        )).thenAnswer(inv -> "ORDER_CONSUME".equals(inv.getArgument(2)));
         when(promotionUsageRepository.findByOrderId(505L)).thenReturn(Collections.singletonList(usage));
-        when(promotionRepository.findById(99L)).thenReturn(Optional.of(promo));
+        when(promotionRepository.findByIdForUpdate(99L)).thenReturn(Optional.of(promo));
         when(promotionRepository.save(any(Promotion.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(userRepository.findById(705L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(705L)).thenReturn(Optional.of(user));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
         orderService.cancelOrder(505L, null, "Hủy đơn hàng đã thanh toán trước khi giao");
@@ -410,7 +414,7 @@ public class D2CBusinessLogicTests {
         order.setOrderStatus("DELIVERED");
         order.setPaymentStatus("PAID");
 
-        when(orderRepository.findById(606L)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate(606L)).thenReturn(Optional.of(order));
 
         assertThrows(CustomException.class, () -> {
             orderService.cancelOrder(606L, null, "Khách muốn hủy sau khi đã nhận hàng");
@@ -822,17 +826,21 @@ public class D2CBusinessLogicTests {
         req.setRefundAmount(BigDecimal.valueOf(200_000));
         req.setStatus("PROCESSING");
 
-        when(orderReturnRepository.findById(777L)).thenReturn(Optional.of(req));
-        when(userRepository.findById(903L)).thenReturn(Optional.of(user));
-        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        User admin = new User(); admin.setId(99L);
+        Role adminRole = new Role(); adminRole.setRoleName("ROLE_ADMIN");
+        admin.setRoles(Collections.singleton(adminRole));
 
-        User staff = new User(); staff.setId(99L);
+        when(orderReturnRepository.findByIdForUpdate(777L)).thenReturn(Optional.of(req));
+        when(userRepository.findByIdForUpdate(903L)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(productVariantRepository.findByIdForUpdate(31L)).thenReturn(Optional.of(variant));
+
         // Lần 1: Hoàn tất
-        returnService.completeReturn(777L, "COOLCASH", staff);
+        returnService.completeReturn(777L, "COOLCASH", admin);
         assertEquals("COMPLETED", req.getStatus());
 
-        // Lần 2: Gọi lại không gây lỗi và không lặp thao tác
-        returnService.completeReturn(777L, "COOLCASH", staff);
+        // Lần 2: Gọi lại không gây lỗi và không lặp thao tác (Idempotency)
+        returnService.completeReturn(777L, "COOLCASH", admin);
         assertEquals("COMPLETED", req.getStatus());
     }
 
@@ -846,7 +854,7 @@ public class D2CBusinessLogicTests {
         req.setId(788L);
         req.setStatus("REQUESTED");
 
-        when(orderReturnRepository.findById(788L)).thenReturn(Optional.of(req));
+        when(orderReturnRepository.findByIdForUpdate(788L)).thenReturn(Optional.of(req));
         User staff = new User(); staff.setId(99L);
 
         // 1. Action không hợp lệ -> ném CustomException
@@ -963,14 +971,19 @@ public class D2CBusinessLogicTests {
         User userA = new User(); userA.setId(1201L);
         User userB = new User(); userB.setId(1202L);
 
-        Cart cartA = new Cart(); cartA.setUser(userA);
+        Cart cartA = new Cart(); cartA.setId(101L); cartA.setUser(userA);
+        Cart cartB = new Cart(); cartB.setId(102L); cartB.setUser(userB);
+
         CartItem itemA = new CartItem(); itemA.setId(121L); itemA.setCart(cartA);
 
+        when(cartRepository.findByUserId(1202L)).thenReturn(Optional.of(cartB));
         when(cartItemRepository.findById(121L)).thenReturn(Optional.of(itemA));
 
         assertThrows(CustomException.class, () -> {
             cartService.removeItem(userB, null, 121L);
         }, "User B deleting User A cart item must be rejected");
+
+        verify(cartItemRepository, never()).delete(any());
     }
 
     // =========================================================================
@@ -1110,8 +1123,6 @@ public class D2CBusinessLogicTests {
         CartItem item = new CartItem(); item.setVariant(variant); item.setQuantity(1);
         List<CartItem> cartItems = Collections.singletonList(item);
 
-        when(productVariantRepository.findById(191L)).thenReturn(Optional.of(variant));
-
         // Test with null
         assertThrows(CustomException.class, () -> {
             orderService.createOrder(user, "Nguyen Van A", "0901234567", "a@gmail.com", "123 Duong A", "HCM", "Q1", "Note", null, null, false, cartItems);
@@ -1216,7 +1227,10 @@ public class D2CBusinessLogicTests {
     @Test
     @DisplayName("TEST 22: Return external refund (BANK/VNPAY) does NOT fake success - Option A enforcement")
     void test22_returnExternalRefundDoesNotFakeSuccess() {
-        User staff = new User(); staff.setId(2201L);
+        User admin = new User(); admin.setId(2201L);
+        Role adminRole = new Role(); adminRole.setRoleName("ROLE_ADMIN");
+        admin.setRoles(Collections.singleton(adminRole));
+
         OrderReturn req = new OrderReturn();
         req.setId(221L);
         req.setStatus("PROCESSING");
@@ -1229,11 +1243,11 @@ public class D2CBusinessLogicTests {
         order.setFinalAmount(BigDecimal.valueOf(500_000));
         req.setOrder(order);
 
-        when(orderReturnRepository.findById(221L)).thenReturn(Optional.of(req));
+        when(orderReturnRepository.findByIdForUpdate(221L)).thenReturn(Optional.of(req));
         when(orderReturnRepository.save(any(OrderReturn.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // When refundMethod is BANK: does NOT set COMPLETED, keeps PROCESSING and REFUND_PENDING
-        returnService.completeReturn(221L, "BANK", staff);
+        returnService.completeReturn(221L, "BANK", admin);
 
         assertEquals("PROCESSING", req.getStatus(), "Return status must remain PROCESSING while external refund is pending");
         assertEquals("REFUND_PENDING", req.getRefundStatus(), "Refund status must be REFUND_PENDING, not fake COMPLETED");
@@ -1257,7 +1271,6 @@ public class D2CBusinessLogicTests {
         req.setRefundAmount(BigDecimal.valueOf(250_000));
 
         when(orderReturnRepository.findByIdForUpdate(231L)).thenReturn(Optional.of(req));
-        when(orderReturnRepository.findById(231L)).thenReturn(Optional.of(req));
         when(orderReturnRepository.save(any(OrderReturn.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         returnService.confirmReturnRefund(231L, "BANK-TXN-REAL-888", admin);
@@ -1281,7 +1294,6 @@ public class D2CBusinessLogicTests {
         req.setRefundAmount(BigDecimal.valueOf(250_000));
 
         when(orderReturnRepository.findByIdForUpdate(232L)).thenReturn(Optional.of(req));
-        when(orderReturnRepository.findById(232L)).thenReturn(Optional.of(req));
 
         assertThrows(CustomException.class, () -> {
             returnService.confirmReturnRefund(232L, "BANK-TXN-REAL-888", admin);

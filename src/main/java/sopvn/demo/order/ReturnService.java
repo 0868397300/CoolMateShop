@@ -332,8 +332,7 @@ public class ReturnService {
         }
 
         OrderReturn req = orderReturnRepository.findByIdForUpdate(returnId)
-                .orElseGet(() -> orderReturnRepository.findById(returnId)
-                        .orElseThrow(() -> new CustomException("Không tìm thấy yêu cầu đổi trả #" + returnId)));
+                .orElseThrow(() -> new CustomException("Không tìm thấy yêu cầu đổi trả #" + returnId));
 
         // Idempotency: nếu đã REFUNDED với cùng mã tham chiếu thì bỏ qua (no-op)
         if ("REFUNDED".equalsIgnoreCase(req.getRefundStatus())) {
